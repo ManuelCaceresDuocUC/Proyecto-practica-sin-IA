@@ -20,9 +20,12 @@ export const useInventario = () => {
         setProductos([...productos, nuevo])
     }
 
-  return {
-    productos,
-    eliminarProducto,
-    agregarProducto,
-  };
+
+    
+
+    return {
+        productos,
+        eliminarProducto,
+        agregarProducto,
+    };
 };

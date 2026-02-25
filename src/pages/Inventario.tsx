@@ -9,20 +9,28 @@ export const Inventario = () => {
 
   const { productos, eliminarProducto, agregarProducto } = useInventario();
 
+  const [busqueda, setBusqueda] = useState('');
+
+
+  const productosFiltrados = productos.filter(
+    p => p.descripcion.toLowerCase().includes(busqueda.toLowerCase()) ||
+    p.id.includes(busqueda)
+  )
+
   const [form, setForm] = useState({
     id: '',
     descripcion: '',
     stock: '' // Lo manejamos como string inicialmente para el input
   });
 
-
+  //manejo del formulario
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault(); // Evita que la página se recargue
 
-    // Validaciones básicas
+    // si no viene alguno de los input retorna la alerta
     if (!form.id || !form.descripcion || !form.stock) return alert("Completa todos los campos");
 
-    // Llamamos a la función del Hook
+    // Llamamos a la función del Hook y le entregamos los datos 
     agregarProducto({
       id: form.id,
       descripcion: form.descripcion,
@@ -38,7 +46,7 @@ export const Inventario = () => {
     <div className='min-h-screen bg-gray-50 flex flex-col items-center p-10 relative'>
       <Link to="/" className='absolute top-10 left-10'>
         <button className='bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-2'>
-          {/* Opcional: un icono de flecha queda muy bien */}
+          
           <span>←</span> Volver al home
         </button>
       </Link>
@@ -46,6 +54,17 @@ export const Inventario = () => {
       <h1 className='text-4xl font-black text-gray-800 mb-8 tracking-tight'>
           Inventario
       </h1>
+
+
+      <div className='w-full max-w-4xl mb-6'>
+        <input 
+          type="text"
+          placeholder='Buscar producto'
+          className='w-full p-3 rounded-xl border border-gray-300 shadow-sm focus:ring-blue-500 outline-none'
+          value={busqueda}
+          onChange={(event) => setBusqueda(event.target.value)}
+        />
+      </div>
       
       
         
@@ -72,7 +91,7 @@ export const Inventario = () => {
               </thead>
               <tbody className='divide-y divide-gray-200'>
                 
-                {productos.map((producto)=>(
+                {productosFiltrados.map((producto)=>(
                   <tr key={producto.id} className="hover:bg-gray-100 transition-colors">
                     <td className='px-6 py-4 text-gray-800'>{producto.id}</td>
                     <td className='px-6 py-4 text-gray-800 italic'>{producto.descripcion}</td>
@@ -84,13 +103,19 @@ export const Inventario = () => {
                     </td>
                   </tr>
                 ))}
-                
+                {productosFiltrados.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-10 text-center text-gray-500">
+                      No se encontraron productos que coincidan con "{busqueda}"
+                    </td>
+                  </tr>
+                )}
                 
                 
               </tbody>
             </table>
           </div>
-
+          {/**FORMULARIO PARA AGREGAR PRODUCTO */}
           <div className='w-full lg:w-80 bg-white p-6 rounded-lg shadow-md border border-gray-200'>
             <h2 className='text-xl font-bold text-gray-700 mb-4'>Nuevo Producto</h2>
             <form className='flex flex-col gap-4 ' onSubmit={handleSubmit}>
@@ -135,15 +160,9 @@ export const Inventario = () => {
                   className="bg-blue-800 hover:bg-blue-950 tetx-white font-bold py-2 px-4 rounded-lg transition-all active:scale-95 shadow-md ">
                         Agregar producto
                 </button>
-
             </form>
           </div>
-
-        
-
         </div>
-      
-      
     </div>
   )
 }
