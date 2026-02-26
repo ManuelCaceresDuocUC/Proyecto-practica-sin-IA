@@ -20,6 +20,7 @@ export const Inventario = () => {
   const [form, setForm] = useState({
     id: '',
     descripcion: '',
+    precio: '',
     stock: '' // Lo manejamos como string inicialmente para el input
   });
 
@@ -28,17 +29,18 @@ export const Inventario = () => {
     e.preventDefault(); // Evita que la página se recargue
 
     // si no viene alguno de los input retorna la alerta
-    if (!form.id || !form.descripcion || !form.stock) return alert("Completa todos los campos");
+    if (!form.id || !form.descripcion || !form.precio|| !form.stock) return alert("Completa todos los campos");
 
     // Llamamos a la función del Hook y le entregamos los datos 
     agregarProducto({
       id: form.id,
       descripcion: form.descripcion,
+      precio: Number(form.precio),
       stock: Number(form.stock) // Convertimos a número
     });
 
     // Limpiamos el formulario
-    setForm({ id: '', descripcion: '', stock: '' });
+    setForm({ id: '', descripcion: '', precio: '', stock: '' });
   };
 
 
@@ -85,6 +87,7 @@ export const Inventario = () => {
                 <tr >
                   <th className='px-6 py-3 text-gray-900 font-bold uppercase text-sm tracking-wider'>Id</th>
                   <th className='px-6 py-3 text-gray-900 font-bold uppercase text-sm tracking-wider'>Descripcion</th>
+                  <th className='px-6 py-3 text-gray-900 font-bold uppercase text-sm tracking-wider'>Precio</th>
                   <th className='px-6 py-3 text-gray-900 font-bold uppercase text-sm tracking-wider'>Cantidad</th>
                   <th className='px-6 py-3'></th>
                 </tr>
@@ -95,6 +98,7 @@ export const Inventario = () => {
                   <tr key={producto.id} className="hover:bg-gray-100 transition-colors">
                     <td className='px-6 py-4 text-gray-800'>{producto.id}</td>
                     <td className='px-6 py-4 text-gray-800 italic'>{producto.descripcion}</td>
+                    <td className='px-6 py-4 text-gray-800 font-medium'>${producto.precio}</td>
                     <td className='px-6 py-4 text-gray-800 font-medium'>{producto.stock}</td>
                     <td>
                       <button onClick={()=> eliminarProducto(producto.id)} className="text-red-500">
@@ -141,6 +145,18 @@ export const Inventario = () => {
                     placeholder='Ej: Coca-cola 1.5 lts'
                     value={form.descripcion}
                     onChange={(e) => setForm({...form, descripcion: e.target.value})}
+                    />
+                </div>
+                <div>
+                  <label className='block '>
+                    Precio:
+                  </label>
+                  <input 
+                    type="text" 
+                    className='w-full mt-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none' 
+                    placeholder='Ej: 20000'
+                    value={form.precio}
+                    onChange={(e)=> setForm({...form, precio: e.target.value})}
                     />
                 </div>
                 <div>
