@@ -2,6 +2,7 @@
 import {  Link } from 'react-router-dom';
 import { useInventario } from '../hooks/useInventario';
 import { useState } from 'react';
+import Swal from 'sweetalert2';
 
 
 
@@ -21,7 +22,8 @@ export const Inventario = () => {
     id: '',
     descripcion: '',
     precio: '',
-    stock: '' // Lo manejamos como string inicialmente para el input
+    stock: '',
+    stockCritico: '', // Lo manejamos como string inicialmente para el input
   });
 
   //manejo del formulario
@@ -29,18 +31,40 @@ export const Inventario = () => {
     e.preventDefault(); // Evita que la página se recargue
 
     // si no viene alguno de los input retorna la alerta
-    if (!form.id || !form.descripcion || !form.precio|| !form.stock) return alert("Completa todos los campos");
+    if (productos.some(p => p.id === form.id)) {
+      Swal.fire({
+        title: 'ID Duplicado',
+        text: `El código ${form.id} ya pertenece a otro producto.`,
+        icon: 'error',
+        timer: 2000,
+      });
+      return;
+    }
+    if (!form.id || !form.descripcion || !form.precio|| !form.stock || !form.stockCritico) 
+      {return Swal.fire({
+                              title: `Faltan datos!!`,
+                              text: 'por favor rellena todas las celdas' ,
+                              icon: 'warning',
+                              timer: 2000,
+                              showConfirmButton: true,
+                              showCancelButton: false, // Muestra el botón cancelar
+                              confirmButtonColor: '#3085d6', // Azul
+                              confirmButtonText: 'Aceptar',
+                              
+                          })}
+
 
     // Llamamos a la función del Hook y le entregamos los datos 
     agregarProducto({
       id: form.id,
       descripcion: form.descripcion,
       precio: Number(form.precio),
-      stock: Number(form.stock) // Convertimos a número
+      stock: Number(form.stock), // Convertimos a número
+      stockCritico: Number(form.stockCritico)
     });
 
     // Limpiamos el formulario
-    setForm({ id: '', descripcion: '', precio: '', stock: '' });
+    setForm({ id: '', descripcion: '', precio: '', stock: '',stockCritico: '' });
   };
 
 
@@ -89,24 +113,35 @@ export const Inventario = () => {
                   <th className='px-6 py-3 text-gray-900 font-bold uppercase text-sm tracking-wider'>Descripcion</th>
                   <th className='px-6 py-3 text-gray-900 font-bold uppercase text-sm tracking-wider'>Precio</th>
                   <th className='px-6 py-3 text-gray-900 font-bold uppercase text-sm tracking-wider'>Cantidad</th>
+                  <th className='px-6 py-3 text-gray-900 font-bold uppercase text-sm tracking-wider'>Stock crítico</th>
                   <th className='px-6 py-3'></th>
                 </tr>
               </thead>
               <tbody className='divide-y divide-gray-200'>
                 
-                {productosFiltrados.map((producto)=>(
-                  <tr key={producto.id} className="hover:bg-gray-100 transition-colors">
+                {productosFiltrados.map((producto)=>{
+                  const condicionCriticos = producto.stock <= producto.stockCritico
+                    
+                  
+                  return(
+                  <tr key={producto.id} 
+                      className={`transition-colors ${
+                      condicionCriticos 
+                        ? 'bg-red-100 hover:bg-red-200 text-red-900' // Color si es crítico
+                        : 'hover:bg-gray-100'                      // Color normal
+                    }`}>
                     <td className='px-6 py-4 text-gray-800'>{producto.id}</td>
                     <td className='px-6 py-4 text-gray-800 italic'>{producto.descripcion}</td>
                     <td className='px-6 py-4 text-gray-800 font-medium'>${producto.precio}</td>
                     <td className='px-6 py-4 text-gray-800 font-medium'>{producto.stock}</td>
+                    <td className='px-6 py-4 text-gray-800 font-medium'>{producto.stockCritico}</td>
                     <td>
                       <button onClick={()=> eliminarProducto(producto.id)} className="text-red-500">
                         Eliminar
                       </button>
                     </td>
-                  </tr>
-                ))}
+                  </tr>)
+                })}
                 {productosFiltrados.length === 0 && (
                   <tr>
                     <td colSpan={4} className="p-10 text-center text-gray-500">
@@ -169,6 +204,18 @@ export const Inventario = () => {
                     placeholder='Ej: 20'
                     value={form.stock}
                     onChange={(e)=> setForm({...form, stock: e.target.value})}
+                    />
+                </div>
+                <div>
+                  <label className='block '>
+                    Stock crítico:
+                  </label>
+                  <input 
+                    type="text" 
+                    className='w-full mt-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none' 
+                    placeholder='Ej: 20'
+                    value={form.stockCritico}
+                    onChange={(e)=> setForm({...form, stockCritico: e.target.value})}
                     />
                 </div>
                 <button 
