@@ -40,29 +40,67 @@ export const Ventas = () => {
 
   const sugerencias = busqueda.trim() === '' 
     ? [] 
-    : productos.filter(
-    p => p.descripcion.toLowerCase()
-    .includes(busqueda.toLowerCase()) ||
-    p.id.includes(busqueda)
-  ).slice(0,5)
+    : productos.filter(p => 
+        p.descripcion.toLowerCase().includes(busqueda.toLowerCase()) ||
+        p.id.toString().includes(busqueda) // Convertimos el ID a string para buscar
+      ).slice(0, 5);
   
-  const confirmarVentaFinal = () => {
-  // Aquí es donde harás el descuento de stock más adelante
-    console.log(`Venta realizada con éxito vía: ${metodoPago}`);
-    
-    Swal.fire({
-      title: '¡Venta Exitosa!',
-      text: `Se ha registrado el pago en ${metodoPago}`,
-      icon: 'success',
-      timer: 2000
-    });
+  const confirmarVentaFinal = async () => {
+    if (!metodoPago) return;
 
-    // Limpiar carrito y cerrar modal
-    setCarrito([]);
-    setShowModalPago(false);
-    setMetodoPago("");
+    try {
+      Swal.fire({
+        title: 'Procesando...',
+        text: metodoPago === 'tarjeta' ? 'Siga las instrucciones en la maquinita' : 'Registrando venta',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      // --- PASO 1: Si es tarjeta, hablar con el terminal Getnet ---
+      if (metodoPago === 'tarjeta') {
+        const resPago = await fetch("http://localhost:8080/api/pagos/cobrar", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ monto: Math.round(totalVenta) }) // Getnet suele usar enteros
+        });
+
+        const resultadoPago = await resPago.json();
+
+        if (!resPago.ok) {
+          throw new Error(resultadoPago.message || "Pago rechazado por el terminal");
+        }
+      }
+
+      // --- PASO 2: Si el pago fue OK (o es efectivo), descontamos el stock ---
+      const promesasStock = carrito.map(p => 
+        fetch(`http://localhost:8080/api/productos/${p.id}/descontar?cantidad=${p.cantidadSeleccionada}`, {
+          method: 'PUT'
+        })
+      );
+
+      const resultadosStock = await Promise.all(promesasStock);
+      
+      if (resultadosStock.some(r => !r.ok)) {
+        throw new Error("Error crítico: El pago pasó pero no pudimos actualizar el stock.");
+      }
+
+      // --- PASO 3: Finalizar ---
+      Swal.fire({
+        title: '¡Venta Completada!',
+        text: `Transacción finalizada con éxito vía ${metodoPago}`,
+        icon: 'success',
+        timer: 3000
+      });
+
+      setCarrito([]);
+      setShowModalPago(false);
+      setMetodoPago("");
+
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error inesperado";
+      Swal.fire('Venta Cancelada', msg, 'error');
+    }
   };
-
   return (
     
     <div className='min-h-screen bg-gray-50 flex flex-col items-center p-10 relative'>
@@ -222,7 +260,7 @@ export const Ventas = () => {
                 Finalizar Venta
               </h3>
               <p className="text-center text-gray-600 mb-6">
-                Total a pagar: <span className="font-bold text-blue-600 text-xl">${Math.round(totalVenta * 1.19)}</span>
+                Total a pagar: <span className="font-bold text-blue-600 text-xl">${totalVenta}</span>
               </p>
 
               <div className="grid grid-cols-2 gap-4 mb-8">
@@ -257,7 +295,7 @@ export const Ventas = () => {
                   />
                   {pagaCon > (totalVenta * 1.19) && (
                     <p className="mt-2 text-lg font-bold text-green-600">
-                      Vuelto: ${Math.round(pagaCon - (totalVenta * 1.19))}
+                      Vuelto: ${Math.round(pagaCon - (totalVenta ))}
                     </p>
                   )}
                 </div>

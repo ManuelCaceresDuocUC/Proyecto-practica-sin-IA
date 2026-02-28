@@ -3,7 +3,7 @@ import { useState } from "react";
 
 
 interface Producto {
-    id: string;
+    id: number;
     descripcion: string;
     precio: number;
     stock: number;
@@ -30,10 +30,10 @@ export const useVentas = () => {
             return [...prev,{...producto,cantidadSeleccionada: 1}];
         });
     };
-    const eliminarDelCarrito = (id: string) => {
+    const eliminarDelCarrito = (id: number) => {
         setCarrito(prev => prev.filter(p => p.id !== id));
     };
-    const actualizarCantidad = (id: string, delta: number) => {
+    const actualizarCantidad = (id: number, delta: number) => {
         setCarrito(prev => prev.map(p => {
             if (p.id === id) {
             const nuevaCant = p.cantidadSeleccionada + delta;

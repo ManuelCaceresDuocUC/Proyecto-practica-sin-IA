@@ -9,6 +9,7 @@ import Swal from 'sweetalert2';
 export const Inventario = () => {
 
   const { productos, eliminarProducto, agregarProducto } = useInventario();
+  const [showModalProducto, setShowModalProducto] = useState(false);
 
   const [busqueda, setBusqueda] = useState('');
 
@@ -151,6 +152,17 @@ export const Inventario = () => {
             </table>
           </div>
           {/**FORMULARIO PARA AGREGAR PRODUCTO */}
+          <div>
+            <button
+              onClick={() => setShowModalProducto(true)}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-black py-4 rounded-xl transition-all active:scale-95 shadow-lg mt-2 uppercase tracking-wider"
+              >
+              Agregar producto
+            </button>
+          </div>
+          {showModalProducto && (
+                    <div className="fixed inset-0 bg-white/30 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-all">
+
           <div className='w-full lg:w-80 bg-white p-6 rounded-lg shadow-md border border-gray-200'>
             <h2 className='text-xl font-bold text-gray-700 mb-4'>Nuevo Producto</h2>
             <form className='flex flex-col gap-4 ' onSubmit={handleSubmit}>
@@ -208,8 +220,15 @@ export const Inventario = () => {
                   className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all active:scale-95 shadow-md ">
                         Agregar producto
                 </button>
+                <button 
+                  onClick={() => { setShowModalProducto(false);  }}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-all active:scale-95 shadow-md"
+                >
+                  Cancelar y volver
+                </button>
             </form>
           </div>
+          </div>)}
         </div>
     </div>
   )
