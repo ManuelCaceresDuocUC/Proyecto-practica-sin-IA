@@ -3,14 +3,14 @@ import { useState } from "react";
 
 
 interface Producto {
-  id: string;
-  descripcion: string;
-  precio: number;
-  stock: number;
+    id: string;
+    descripcion: string;
+    precio: number;
+    stock: number;
 }
 
 interface ProductoCarrito extends Producto {
-  cantidadSeleccionada: number;
+    cantidadSeleccionada: number;
 }
 
 export const useVentas = () => {
@@ -31,19 +31,19 @@ export const useVentas = () => {
         });
     };
     const eliminarDelCarrito = (id: string) => {
-    setCarrito(prev => prev.filter(p => p.id !== id));
+        setCarrito(prev => prev.filter(p => p.id !== id));
     };
     const actualizarCantidad = (id: string, delta: number) => {
-    setCarrito(prev => prev.map(p => {
-        if (p.id === id) {
-        const nuevaCant = p.cantidadSeleccionada + delta;
-        // No permitir menos de 1 ni más que el stock
-        if (nuevaCant >= 1 && nuevaCant <= p.stock) {
-            return { ...p, cantidadSeleccionada: nuevaCant };
-        }
-        }
-        return p;
-    }));
+        setCarrito(prev => prev.map(p => {
+            if (p.id === id) {
+            const nuevaCant = p.cantidadSeleccionada + delta;
+            // No permitir menos de 1 ni más que el stock
+            if (nuevaCant >= 1 && nuevaCant <= p.stock) {
+                return { ...p, cantidadSeleccionada: nuevaCant };
+            }
+            }
+            return p;
+        }));
     };
 
     const totalVenta = carrito.reduce((acc, p) => acc + (p.precio * p.cantidadSeleccionada), 0);
@@ -52,6 +52,7 @@ export const useVentas = () => {
     const vaciarCarrito = () => setCarrito([]);
     return {
         carrito,
+        setCarrito,
         agregarAlCarrito,
         eliminarDelCarrito,
         actualizarCantidad,

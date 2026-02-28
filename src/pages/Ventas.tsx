@@ -3,22 +3,29 @@ import { Link } from 'react-router-dom';
 import { useInventario } from '../hooks/useInventario';
 import { useEffect, useRef, useState } from 'react';
 import { useVentas } from '../hooks/useVentas';
+import Swal from 'sweetalert2';
 
 
 export const Ventas = () => {
   const buscadorRef = useRef<HTMLDivElement>(null);
   const { productos } = useInventario();
+  const [showModalPago, setShowModalPago] = useState(false);
+  const [metodoPago, setMetodoPago] = useState("");
+  const [pagaCon, setPagaCon] = useState(0);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const { 
-    carrito, 
+    carrito,
+    setCarrito, 
     agregarAlCarrito,  
     actualizarCantidad,
     totalVenta,
     eliminarDelCarrito, 
     
   } = useVentas();
-
+  const totalBruto = totalVenta; 
+  const neto = Math.round(totalBruto / 1.19);
+  const iva = totalBruto - neto;
   useEffect(() => {
     const handleClickAfuera = (event: MouseEvent) => {
       if (buscadorRef.current && !buscadorRef.current.contains(event.target as Node)){
@@ -39,6 +46,22 @@ export const Ventas = () => {
     p.id.includes(busqueda)
   ).slice(0,5)
   
+  const confirmarVentaFinal = () => {
+  // Aquí es donde harás el descuento de stock más adelante
+    console.log(`Venta realizada con éxito vía: ${metodoPago}`);
+    
+    Swal.fire({
+      title: '¡Venta Exitosa!',
+      text: `Se ha registrado el pago en ${metodoPago}`,
+      icon: 'success',
+      timer: 2000
+    });
+
+    // Limpiar carrito y cerrar modal
+    setCarrito([]);
+    setShowModalPago(false);
+    setMetodoPago("");
+  };
 
   return (
     
@@ -112,7 +135,7 @@ export const Ventas = () => {
                 <th className='px-6 py-3 text-gray-900 font-bold uppercase text-xs text-center'>Precio</th>
                 <th className='px-6 py-3 text-gray-900 font-bold uppercase text-xs text-center'>Cantidad</th>
                 <th className='px-6 py-3 text-gray-900 font-bold uppercase text-xs text-center'>Subtotal</th>
-                <th className='px-6 py-3 w-16'></th> {/* Columna pequeña para el botón eliminar */}
+                <th className='px-6 py-3 w-16'></th>{/**  Columna pequeña para el botón eliminar */}
               </tr>
             </thead>
             <tbody className='divide-y divide-gray-200'>
@@ -157,14 +180,108 @@ export const Ventas = () => {
           )}
         </div>
         {/**DIV lprecio  */}
-        <div className='w-full lg:w-80 bg-white p-6 rounded-lg shadow-md border border-gray-200'>
-            <h1 className='text-3xl'>Total venta: {totalVenta}</h1>
+        <div className='w-full lg:w-80 bg-white p-6 rounded-xl shadow-lg border-t-4 border-green-600 flex flex-col gap-4'>
+          <h2 className='text-gray-500 uppercase text-xs font-bold tracking-widest text-center'>Resumen de Venta</h2>
+          
+          <div className='flex justify-between items-center pt-2 border-b pb-4'>
+            <span className='text-xl font-bold text-gray-800'>Total a Pagar</span>
+            <span className='text-3xl font-black text-green-600'>${totalBruto}</span>
+          </div>
+
+          <div className='space-y-2 text-sm text-gray-500 italic'>
+            <div className='flex justify-between'>
+              <span>Neto:</span>
+              <span>${neto}</span>
+            </div>
+            <div className='flex justify-between'>
+              <span>IVA (19%):</span>
+              <span>${iva}</span>
+            </div>
+          </div>
+          
+          <button 
+            onClick={() => setShowModalPago(true)}
+            disabled={carrito.length === 0}
+            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-black py-4 rounded-xl transition-all active:scale-95 shadow-lg mt-2 uppercase tracking-wider"
+          >
+            Finalizar Compra
+          </button>
         </div>
 
 
 
-
       </div>
+        {showModalPago && (
+        /* Capa de fondo oscura (Overlay) */
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-all">
+          
+          {/* Contenedor del Modal */}
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+            <div className="p-6">
+              <h3 className="text-2xl font-bold text-gray-800 mb-4 text-center">
+                Finalizar Venta
+              </h3>
+              <p className="text-center text-gray-600 mb-6">
+                Total a pagar: <span className="font-bold text-blue-600 text-xl">${Math.round(totalVenta * 1.19)}</span>
+              </p>
+
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                {/* Opción Efectivo */}
+                <button 
+                  onClick={() => setMetodoPago('efectivo')}
+                  className={`flex flex-col items-center p-4 rounded-xl border-2 transition-all ${metodoPago === 'efectivo' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-blue-400'}`}
+                >
+                  <span className="text-3xl mb-2">💵</span>
+                  <span className="font-semibold text-gray-700">Efectivo</span>
+                </button>
+
+                {/* Opción Tarjeta */}
+                <button 
+                  onClick={() => setMetodoPago('tarjeta')}
+                  className={`flex flex-col items-center p-4 rounded-xl border-2 transition-all ${metodoPago === 'tarjeta' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-400'}`}
+                >
+                  <span className="text-3xl mb-2">💳</span>
+                  <span className="font-semibold text-gray-700">Tarjeta</span>
+                </button>
+              </div>
+              {metodoPago === 'efectivo' && (
+                <div className="mb-6 animate-fade-in">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Paga con:
+                  </label>
+                  <input 
+                    type="number"
+                    placeholder="Ej: 10000"
+                    className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
+                    onChange={(e) => setPagaCon(Number(e.target.value))}
+                  />
+                  {pagaCon > (totalVenta * 1.19) && (
+                    <p className="mt-2 text-lg font-bold text-green-600">
+                      Vuelto: ${Math.round(pagaCon - (totalVenta * 1.19))}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={confirmarVentaFinal}
+                  disabled={!metodoPago}
+                  className="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
+                >
+                  Confirmar Pago
+                </button>
+                <button 
+                  onClick={() => { setShowModalPago(false); setMetodoPago(""); }}
+                  className="w-full text-gray-500 font-medium py-2 hover:underline"
+                >
+                  Cancelar y volver
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     
   )

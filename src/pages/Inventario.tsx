@@ -13,10 +13,14 @@ export const Inventario = () => {
   const [busqueda, setBusqueda] = useState('');
 
 
-  const productosFiltrados = productos.filter(
-    p => p.descripcion.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.id.includes(busqueda)
-  )
+  const productosFiltrados = productos.filter(p => {
+    const busquedaMinuscula = busqueda.toLowerCase();
+    
+    return (
+      p.descripcion.toLowerCase().includes(busquedaMinuscula) ||
+      p.id.toString().includes(busqueda) // Convertimos el número a string
+    );
+  });
 
   const [form, setForm] = useState({
     id: '',
@@ -31,16 +35,8 @@ export const Inventario = () => {
     e.preventDefault(); // Evita que la página se recargue
 
     // si no viene alguno de los input retorna la alerta
-    if (productos.some(p => p.id === form.id)) {
-      Swal.fire({
-        title: 'ID Duplicado',
-        text: `El código ${form.id} ya pertenece a otro producto.`,
-        icon: 'error',
-        timer: 2000,
-      });
-      return;
-    }
-    if (!form.id || !form.descripcion || !form.precio|| !form.stock || !form.stockCritico) 
+    
+    if (!form.descripcion || !form.precio|| !form.stock || !form.stockCritico) 
       {return Swal.fire({
                               title: `Faltan datos!!`,
                               text: 'por favor rellena todas las celdas' ,
@@ -56,7 +52,7 @@ export const Inventario = () => {
 
     // Llamamos a la función del Hook y le entregamos los datos 
     agregarProducto({
-      id: form.id,
+      
       descripcion: form.descripcion,
       precio: Number(form.precio),
       stock: Number(form.stock), // Convertimos a número
@@ -158,20 +154,9 @@ export const Inventario = () => {
           <div className='w-full lg:w-80 bg-white p-6 rounded-lg shadow-md border border-gray-200'>
             <h2 className='text-xl font-bold text-gray-700 mb-4'>Nuevo Producto</h2>
             <form className='flex flex-col gap-4 ' onSubmit={handleSubmit}>
+                
                 <div>
-                  <label className='block '>
-                    ID:
-                  </label>
-                  <input 
-                    type="text" 
-                    className='w-full mt-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none' 
-                    placeholder='Ej: 0002'
-                    value={form.id}
-                    onChange={(e) => setForm({ ...form, id: e.target.value })}
-                    />
-                </div>
-                <div>
-                  <label className='block '>
+                  <label className='block font-black'>
                     Descripcion:
                   </label>
                   <input 
@@ -183,7 +168,7 @@ export const Inventario = () => {
                     />
                 </div>
                 <div>
-                  <label className='block '>
+                  <label className='block font-black'>
                     Precio:
                   </label>
                   <input 
@@ -195,7 +180,7 @@ export const Inventario = () => {
                     />
                 </div>
                 <div>
-                  <label className='block '>
+                  <label className='block font-black'>
                     Cantidad:
                   </label>
                   <input 
@@ -207,7 +192,7 @@ export const Inventario = () => {
                     />
                 </div>
                 <div>
-                  <label className='block '>
+                  <label className='block font-black'>
                     Stock crítico:
                   </label>
                   <input 
@@ -220,7 +205,7 @@ export const Inventario = () => {
                 </div>
                 <button 
                   type='submit'
-                  className="bg-blue-800 hover:bg-blue-950 tetx-white font-bold py-2 px-4 rounded-lg transition-all active:scale-95 shadow-md ">
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all active:scale-95 shadow-md ">
                         Agregar producto
                 </button>
             </form>
