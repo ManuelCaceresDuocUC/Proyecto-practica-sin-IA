@@ -1,15 +1,33 @@
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 
-interface Producto {
+export interface Producto {
     id: number;
+    codigoBarras?: string;
     descripcion: string;
     precio: number;
     stock: number;
     stockCritico: number;
+    esInsumo: boolean;
+    unidadMedida: string;
+    receta?: IngredienteReceta[]; // <--- AQUÍ agregamos la propiedad que faltaba
+    }
+interface IngredienteParaEnviar {
+    insumoId: number;
+    cantidad: number;
+}
+export interface IngredienteReceta {
+    id: number;
+    cantidadUsada: number;
+    insumo: {
+        id: number;
+        descripcion: string;
+        stock: number;
+    };
 }
 
 export const useInventario = () => {
+
     const [productos, setProductos] = useState<Producto[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -36,9 +54,13 @@ export const useInventario = () => {
         }
     };
 
+    
     useEffect(() => {
         cargarProductos();
     }, []);
+
+
+    
 
     const eliminarProducto = async (id: number) => {
         const result = await Swal.fire({
@@ -64,29 +86,80 @@ export const useInventario = () => {
         }
     };
 
-    const agregarProducto = async (nuevo: Omit<Producto, 'id'>) => {
+    const agregarProducto = async (nuevo: Omit<Producto, 'id'>, ingredientes?: IngredienteParaEnviar[]) => {
         try {
-            const res = await fetch(API_URL, {
+            // Decidimos a qué URL disparar:
+            // Si hay ingredientes, usamos el endpoint de receta, si no, el normal.
+            const urlFinal = ingredientes && ingredientes.length > 0 
+                ? `${API_URL}/con-receta` 
+                : API_URL;
+
+            // Preparamos el cuerpo del mensaje
+            const body = ingredientes && ingredientes.length > 0
+                ? { productoPrincipal: nuevo, ingredientes: ingredientes }
+                : nuevo;
+
+            const res = await fetch(urlFinal, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(nuevo)
+                body: JSON.stringify(body)
             });
-            const productoGuardado = await res.json();
-            setProductos([...productos, productoGuardado]);
-            Swal.fire('Guardado', 'Producto agregado con éxito', 'success');
+
+            if (!res.ok) {
+                const errorMsg = await res.text();
+                throw new Error(errorMsg || "Error en el servidor");
+            }
+
+            
+            
+            // Refrescamos la lista completa para asegurarnos de traer las relaciones de la DB
+            await cargarProductos(); 
+            
+            Swal.fire('Guardado', 'Producto y receta registrados con éxito', 'success');
         } catch (err: unknown) {
             console.error("Error al agregar:", err);
-            Swal.fire('Error', 'No se pudo guardar el producto', 'error');
+            Swal.fire('Error', 'No se pudo guardar el producto.', 'error');
+            throw err;
         }
     };
 
+    const editarProducto = async (id: number, datosActualizados: Omit<Producto, 'id'>) => {
+        try {
+            // 1. Enviamos el ID en la URL (estándar REST)
+            const res = await fetch(`${API_URL}/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datosActualizados)
+            });
+
+            if (!res.ok) throw new Error("Error al actualizar en el servidor");
+
+            const productoServidor = await res.json();
+
+            // 2. ACTUALIZACIÓN INTELIGENTE DEL ESTADO
+            // Usamos .map() para recorrer la lista: 
+            // Si el ID coincide, ponemos el que nos devolvió el servidor.
+            // Si no coincide, dejamos el producto tal cual estaba.
+            setProductos(prevProductos => 
+                prevProductos.map(p => p.id === id ? productoServidor : p)
+            );
+
+            Swal.fire('¡Éxito!', 'Producto actualizado correctamente', 'success');
+            
+        } catch (err: unknown) {
+            console.error("Error al editar:", err);
+            Swal.fire('Error', 'No se pudo modificar el producto', 'error');
+        }
+    };
     // Retorno único con todos los estados necesarios
     return {
         productos,
         loading, 
-        error,   
+        error,
+        cargarProductos,   
         eliminarProducto,
         agregarProducto,
+        editarProducto,
         refrescar: cargarProductos 
     };
 };

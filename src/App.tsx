@@ -5,6 +5,7 @@ import { Home } from './pages/Home';
 import { Inventario } from './pages/Inventario';
 import { Administracion } from './pages/Administracion';
 import { Login } from './pages/Login';
+import { Recetas } from './pages/Recetas';
 
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
           <Route path="/ventas" element={<Ventas />}/>
           <Route path="/inventario" element={<Inventario />}/>
           <Route path="/administracion" element={<Administracion />}/>
+          <Route path="/recetas" element={<Recetas />}/>
         </Routes>
       
 

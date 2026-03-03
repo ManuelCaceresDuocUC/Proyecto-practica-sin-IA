@@ -1,0 +1,124 @@
+import { useEffect, useState } from "react";
+import Swal from "sweetalert2";
+
+export interface Receta {
+  id?: number;
+  productoPadreId: number;
+  productoPadreNombre?: string; 
+  insumoId: number;        
+  insumoNombre?: string;
+  cantidadUsada: number;   
+}
+
+export const useRecetas = () => {
+    const [recetas, setRecetas] = useState<Receta[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    // Ajusta la URL a tu endpoint de Spring Boot
+    const API_URL = "http://localhost:8080/api/recetas";
+
+    const cargarRecetas = async () => {
+        try {
+            setLoading(true);
+            const respuesta = await fetch(API_URL);
+            if (!respuesta.ok) throw new Error("Error al conectar con el servidor");
+            const datos = await respuesta.json();
+            setRecetas(datos);
+        } catch (err: unknown) {
+            const mensaje = err instanceof Error ? err.message : "Error desconocido";
+            setError(mensaje);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        cargarRecetas();
+    }, []);
+
+    const eliminarReceta = async (id: number) => {
+        const result = await Swal.fire({
+            title: '¿Eliminar vínculo?',
+            text: "Se borrará la relación de este insumo con el producto.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                if(!res.ok) throw new Error("Error en el servidor");
+
+                setRecetas(recetas.filter(r => r.id !== id));
+                Swal.fire('Eliminado', 'La receta ha sido actualizada.', 'success');
+            } catch (err) {
+                console.error("Error al eliminar:", err);
+                const mensajeError = err instanceof Error ? err.message : 'Ocurrió un problema inesperado';
+
+                Swal.fire(
+                    'Error',          // Título
+                    mensajeError,     // Texto (descripción del error)
+                    'error'           // Icono (esto es lo que faltaba o estaba mal posicionado)
+                );
+            }
+        }
+    };
+
+    const agregarReceta = async (nuevo: Omit<Receta, 'id' | 'productoPadreNombre' | 'insumoNombre'>) => {
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(nuevo)
+            });
+            if (!res.ok) throw new Error("Error al guardar");
+            
+            const recetaGuardada = await res.json();
+            setRecetas([...recetas, recetaGuardada]);
+            Swal.fire('Éxito', 'Insumo vinculado correctamente', 'success');
+        } catch (err) {
+            console.error("Error al agregar:", err);
+            const mensajeError = err instanceof Error ? err.message : 'Ocurrió un problema inesperado';
+
+            Swal.fire(
+                'Error',          // Título
+                mensajeError,     // Texto (descripción del error)
+                'error'           // Icono (esto es lo que faltaba o estaba mal posicionado)
+            );
+        }
+    };
+
+    const editarReceta = async (id: number, datosActualizados: Partial<Receta>) => {
+        try {
+            const res = await fetch(`${API_URL}/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datosActualizados)
+            });
+
+            if (!res.ok) throw new Error("Error al actualizar");
+
+            const recetaServidor = await res.json();
+            setRecetas(prev => prev.map(r => r.id === id ? recetaServidor : r));
+
+            Swal.fire('Actualizado', 'Los cambios han sido guardados', 'success');
+        } catch (err: unknown) {
+            console.error("Error al actualizar:", err); // Para que tú lo veas en la consola
+            
+            // Extraemos el mensaje de forma segura
+            const mensajeError = err instanceof Error ? err.message : 'Ocurrió un problema inesperado';
+
+            Swal.fire(
+                'Error',          // Título
+                mensajeError,     // Texto (descripción del error)
+                'error'           // Icono (esto es lo que faltaba o estaba mal posicionado)
+            );
+        }
+    };
+
+    return { recetas, loading, error, eliminarReceta, agregarReceta, editarReceta, refrescar: cargarRecetas };
+};
