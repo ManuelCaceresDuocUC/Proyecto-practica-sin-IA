@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 
 
 
-// Interfaz para el manejo local de la receta en el formulario
+
 interface ItemRecetaLocal {
   insumoId: number;
   cantidad: number;
@@ -13,17 +13,24 @@ interface ItemRecetaLocal {
 }
 
 export const Inventario = () => {
-  const { productos, eliminarProducto, agregarProducto, editarProducto } = useInventario();
+  const { productos,
+          eliminarProducto,
+          agregarProducto,
+          editarProducto,
+          obtenerStockVisual,
+          productosFiltrados,
+          busqueda,
+          setBusqueda } = useInventario();
   const productosRef = useRef<Producto[]>([]);
 
-  // Sincronizar ref para el escáner
+  
   useEffect(() => {
     productosRef.current = productos;
   }, [productos]);
 
   const [showModalProducto, setShowModalProducto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [busqueda, setBusqueda] = useState('');
+  
   
   const [form, setForm] = useState({
     codigoBarras: '',
@@ -35,7 +42,7 @@ export const Inventario = () => {
     unidadMedida: 'UN'
   });
 
-  // --- ESTADOS PARA LA RECETA ---
+  
   const [listaIngredientesSeleccionados, setListaIngredientesSeleccionados] = useState<ItemRecetaLocal[]>([]);
   const [nuevoIngrediente, setNuevoIngrediente] = useState({
     insumoId: 0,
@@ -43,7 +50,7 @@ export const Inventario = () => {
     descripcion: ''
   });
 
-  // Funciones de Receta
+  
   const agregarIngredienteALista = () => {
     if (nuevoIngrediente.insumoId === 0 || nuevoIngrediente.cantidad <= 0) {
       return Swal.fire("Atención", "Selecciona un insumo y cantidad válida", "warning");
@@ -66,7 +73,7 @@ export const Inventario = () => {
       esInsumo: producto.esInsumo ?? true,
       unidadMedida: producto.unidadMedida
     });
-    // Si tiene receta en la DB, la cargamos al estado local
+    
     if (producto.receta) {
       setListaIngredientesSeleccionados(producto.receta.map(r => ({
         insumoId: r.insumo.id,
@@ -108,11 +115,9 @@ export const Inventario = () => {
       unidadMedida: form.unidadMedida,
       codigoBarras: codigoFinal,
     };
-
     if (editandoId) {
       await editarProducto(editandoId, datosProducto);
     } else {
-      // Enviamos receta solo si NO es insumo y hay items agregados
       const ingredientesParaEnviar = !form.esInsumo 
         ? listaIngredientesSeleccionados.map(i => ({ insumoId: i.insumoId, cantidad: i.cantidad })) 
         : [];
@@ -121,23 +126,9 @@ export const Inventario = () => {
     cerrarModal();
   };
 
-  // Lógica de Stock Virtual (Cuello de botella)
-  const obtenerStockVisual = (producto: Producto) => {
-    if (producto.esInsumo || !producto.receta || producto.receta.length === 0) {
-      return producto.stock;
-    }
-    const limites = producto.receta.map(item => {
-      const insumoOriginal = productos.find(p => p.id === item.insumo.id);
-      if (!insumoOriginal || insumoOriginal.stock <= 0) return 0;
-      return Math.floor(insumoOriginal.stock / item.cantidadUsada);
-    });
-    return Math.min(...limites);
-  };
+  
 
-  const productosFiltrados = productos.filter(p => {
-    const b = busqueda.toLowerCase();
-    return p.descripcion.toLowerCase().includes(b) || p.codigoBarras?.toLowerCase().includes(b) || p.id.toString().includes(b);
-  });
+  
 
   const manejarEntradaStock = async (producto: Producto) => {
     const { value: cantidad } = await Swal.fire({
@@ -161,11 +152,7 @@ export const Inventario = () => {
 
     if (cantidad) {
       try {
-        // Calculamos el nuevo stock sumando la entrada al stock actual
         const nuevoStock = producto.stock + Number(cantidad);
-        
-        // Reutilizamos tu función de editarProducto enviando solo el stock actualizado
-        // Nota: editarProducto en tu hook usa Omit<Producto, 'id'>, así que mandamos el objeto completo
         await editarProducto(producto.id, {
           ...producto,
           stock: nuevoStock

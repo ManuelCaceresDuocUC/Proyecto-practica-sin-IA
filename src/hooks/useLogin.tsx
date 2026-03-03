@@ -13,24 +13,14 @@ export const useLogin = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-
-    
-    
-
-    const [usuarios, setUsuarios] = useState<Usuario[]>([
-        
-    ])
-
+    const [usuarios, setUsuarios] = useState<Usuario[]>([])
 
     const eliminarUsuario = (usuario: string) => {
         setUsuarios(usuarios.filter(p => p.usuario !== usuario));
     };
-
     const agregarUsuario = (nuevo: Usuario) => {
         setUsuarios([...usuarios, nuevo])
     }
-
     const cargarUsuarios = async () => {
         try {
             setLoading(true);
@@ -48,9 +38,8 @@ export const useLogin = () => {
     useEffect(() => {
             cargarUsuarios();
         }, []);
-
     const logearUsuario = async (credenciales: Usuario) => {
-        setLoading(true); // <--- Aquí usamos setLoading
+        setLoading(true); 
         setError(null);
         try {
             const respuesta = await fetch(`${API_URL}/login`, {
@@ -83,11 +72,9 @@ export const useLogin = () => {
             });
         }
         finally{
-            setLoading(false); // <--- Aquí usamos setLoading
+            setLoading(false);
             }
-};
-
-    
+    };
 
     return {
         usuarios,

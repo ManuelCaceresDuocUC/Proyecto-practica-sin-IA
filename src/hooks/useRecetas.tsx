@@ -1,21 +1,20 @@
+
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 
 export interface Receta {
-  id?: number;
-  productoPadreId: number;
-  productoPadreNombre?: string; 
-  insumoId: number;        
-  insumoNombre?: string;
-  cantidadUsada: number;   
+    id?: number;
+    productoPadreId: number;
+    productoPadreNombre?: string; 
+    insumoId: number;        
+    insumoNombre?: string;
+    cantidadUsada: number;   
 }
 
 export const useRecetas = () => {
     const [recetas, setRecetas] = useState<Receta[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    // Ajusta la URL a tu endpoint de Spring Boot
     const API_URL = "http://localhost:8080/api/recetas";
 
     const cargarRecetas = async () => {
@@ -60,9 +59,9 @@ export const useRecetas = () => {
                 const mensajeError = err instanceof Error ? err.message : 'Ocurrió un problema inesperado';
 
                 Swal.fire(
-                    'Error',          // Título
-                    mensajeError,     // Texto (descripción del error)
-                    'error'           // Icono (esto es lo que faltaba o estaba mal posicionado)
+                    'Error',          
+                    mensajeError,     
+                    'error'         
                 );
             }
         }
@@ -85,9 +84,9 @@ export const useRecetas = () => {
             const mensajeError = err instanceof Error ? err.message : 'Ocurrió un problema inesperado';
 
             Swal.fire(
-                'Error',          // Título
-                mensajeError,     // Texto (descripción del error)
-                'error'           // Icono (esto es lo que faltaba o estaba mal posicionado)
+                'Error',          
+                mensajeError,     
+                'error'           
             );
         }
     };
@@ -107,18 +106,24 @@ export const useRecetas = () => {
 
             Swal.fire('Actualizado', 'Los cambios han sido guardados', 'success');
         } catch (err: unknown) {
-            console.error("Error al actualizar:", err); // Para que tú lo veas en la consola
+            console.error("Error al actualizar:", err); 
             
-            // Extraemos el mensaje de forma segura
+            
             const mensajeError = err instanceof Error ? err.message : 'Ocurrió un problema inesperado';
 
             Swal.fire(
-                'Error',          // Título
-                mensajeError,     // Texto (descripción del error)
-                'error'           // Icono (esto es lo que faltaba o estaba mal posicionado)
+                'Error',          
+                mensajeError,     
+                'error'           
             );
         }
     };
 
-    return { recetas, loading, error, eliminarReceta, agregarReceta, editarReceta, refrescar: cargarRecetas };
+    return {recetas,
+            loading,
+            error,
+            eliminarReceta,
+            agregarReceta,
+            editarReceta,
+            refrescar: cargarRecetas };
 };

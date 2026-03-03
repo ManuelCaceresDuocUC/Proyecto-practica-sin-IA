@@ -21,8 +21,7 @@ export const Home = () => {
       console.log(e);
       // Si el localStorage tiene basura o texto plano, manejamos el error
       setNombreParaMostrar(sesion);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    }// eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
 

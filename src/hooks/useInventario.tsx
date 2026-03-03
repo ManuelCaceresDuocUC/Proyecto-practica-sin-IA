@@ -10,7 +10,7 @@ export interface Producto {
     stockCritico: number;
     esInsumo: boolean;
     unidadMedida: string;
-    receta?: IngredienteReceta[]; // <--- AQUÍ agregamos la propiedad que faltaba
+    receta?: IngredienteReceta[];
     }
 interface IngredienteParaEnviar {
     insumoId: number;
@@ -31,6 +31,7 @@ export const useInventario = () => {
     const [productos, setProductos] = useState<Producto[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [busqueda, setBusqueda] = useState('');
 
     const API_URL = "http://localhost:8080/api/productos";
 
@@ -45,22 +46,16 @@ export const useInventario = () => {
             const datos = await respuesta.json();
             setProductos(datos);
         } catch (err: unknown) {
-            // Arreglo para TypeScript: extraemos el mensaje de forma segura
             const mensaje = err instanceof Error ? err.message : "Error desconocido";
             setError(mensaje);
             console.error("Error al cargar inventario", err);
         } finally {
             setLoading(false);
         }
-    };
-
-    
+    };    
     useEffect(() => {
         cargarProductos();
     }, []);
-
-
-    
 
     const eliminarProducto = async (id: number) => {
         const result = await Swal.fire({
@@ -88,33 +83,22 @@ export const useInventario = () => {
 
     const agregarProducto = async (nuevo: Omit<Producto, 'id'>, ingredientes?: IngredienteParaEnviar[]) => {
         try {
-            // Decidimos a qué URL disparar:
-            // Si hay ingredientes, usamos el endpoint de receta, si no, el normal.
             const urlFinal = ingredientes && ingredientes.length > 0 
                 ? `${API_URL}/con-receta` 
                 : API_URL;
-
-            // Preparamos el cuerpo del mensaje
             const body = ingredientes && ingredientes.length > 0
                 ? { productoPrincipal: nuevo, ingredientes: ingredientes }
                 : nuevo;
-
             const res = await fetch(urlFinal, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
-
             if (!res.ok) {
                 const errorMsg = await res.text();
                 throw new Error(errorMsg || "Error en el servidor");
             }
-
-            
-            
-            // Refrescamos la lista completa para asegurarnos de traer las relaciones de la DB
             await cargarProductos(); 
-            
             Swal.fire('Guardado', 'Producto y receta registrados con éxito', 'success');
         } catch (err: unknown) {
             console.error("Error al agregar:", err);
@@ -125,34 +109,44 @@ export const useInventario = () => {
 
     const editarProducto = async (id: number, datosActualizados: Omit<Producto, 'id'>) => {
         try {
-            // 1. Enviamos el ID en la URL (estándar REST)
             const res = await fetch(`${API_URL}/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(datosActualizados)
             });
-
             if (!res.ok) throw new Error("Error al actualizar en el servidor");
-
             const productoServidor = await res.json();
-
-            // 2. ACTUALIZACIÓN INTELIGENTE DEL ESTADO
-            // Usamos .map() para recorrer la lista: 
-            // Si el ID coincide, ponemos el que nos devolvió el servidor.
-            // Si no coincide, dejamos el producto tal cual estaba.
             setProductos(prevProductos => 
                 prevProductos.map(p => p.id === id ? productoServidor : p)
             );
-
             Swal.fire('¡Éxito!', 'Producto actualizado correctamente', 'success');
-            
         } catch (err: unknown) {
             console.error("Error al editar:", err);
             Swal.fire('Error', 'No se pudo modificar el producto', 'error');
         }
     };
-    // Retorno único con todos los estados necesarios
+
+    const obtenerStockVisual = (producto: Producto) => {
+        if (producto.esInsumo || !producto.receta || producto.receta.length === 0) {
+        return producto.stock;
+        }
+        const limites = producto.receta.map(item => {
+        const insumoOriginal = productos.find(p => p.id === item.insumo.id);
+        if (!insumoOriginal || insumoOriginal.stock <= 0) return 0;
+        return Math.floor(insumoOriginal.stock / item.cantidadUsada);
+        });
+        return Math.min(...limites);
+    };
+    const productosFiltrados = productos.filter(p => {
+        const b = busqueda.toLowerCase();
+        return p.descripcion.toLowerCase().includes(b) || p.codigoBarras?.toLowerCase().includes(b) || p.id.toString().includes(b);
+    });
+
+
     return {
+        productosFiltrados,
+        busqueda,
+        setBusqueda,
         productos,
         loading, 
         error,
@@ -160,6 +154,7 @@ export const useInventario = () => {
         eliminarProducto,
         agregarProducto,
         editarProducto,
+        obtenerStockVisual,
         refrescar: cargarProductos 
     };
 };
