@@ -1,20 +1,31 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {  Link, useNavigate } from 'react-router-dom';
 
 export const Home = () => {
   const navigate = useNavigate();
+  const [nombreParaMostrar, setNombreParaMostrar] = useState('');
 
   useEffect(() => {
     const sesion = localStorage.getItem('user_session');
     if (!sesion) {
-      navigate('/login'); // Si no hay sesión, rebota al login inmediatamente
+      navigate('/login'); 
+      return// Si no hay sesión, rebota al login inmediatamente
+    }
+    try {
+      // 1. Parseamos el JSON para obtener solo el nombre
+      const usuarioObj = JSON.parse(sesion);
+      // Dependiendo de cómo guardes el campo (usuario o nombre)
+      setNombreParaMostrar(usuarioObj.usuario || usuarioObj.nombre || 'Usuario');
+    } catch (e) {
+      console.log(e);
+      // Si el localStorage tiene basura o texto plano, manejamos el error
+      setNombreParaMostrar(sesion);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [navigate]);
 
 
-  const nombreUsuario = localStorage.getItem('user_session') || 'Invitado';
   const handleLogout = () => {
     localStorage.removeItem('user_session'); // Limpiamos la sesión
     navigate('/login'); // Redirigimos al usuario 
@@ -34,7 +45,7 @@ export const Home = () => {
         </nav>
 
       <h1 className='text-4xl font-black text-gray-800 mb-8 tracking-tight'>
-        Bienvenido {nombreUsuario}
+        Bienvenido {nombreParaMostrar}
       </h1>
 
       <nav className='flex flex-col gap-4 w-full max-w-md'>
@@ -49,16 +60,17 @@ export const Home = () => {
             Modulo de Inventario
           </button>
         </Link>
-        <Link to="/administracion">
-          <button className='w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95'>
-            Modulo de Administracion
-          </button>
-        </Link>
         <Link to="/recetas">
           <button className='w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95'>
             Modulo de Recetas
           </button>
         </Link>
+        <Link to="/administracion">
+          <button className='w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95'>
+            Modulo de Administracion
+          </button>
+        </Link>
+        
       </nav>
     
    

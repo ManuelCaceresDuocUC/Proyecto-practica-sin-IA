@@ -6,6 +6,7 @@ import { Inventario } from './pages/Inventario';
 import { Administracion } from './pages/Administracion';
 import { Login } from './pages/Login';
 import { Recetas } from './pages/Recetas';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 
 function App() {
@@ -17,12 +18,17 @@ function App() {
       
       
         <Routes>
-          <Route path="/" element={<Home />}/>
+
           <Route path='/login' element={<Login/>}/>
+
+          
+          <Route element={<ProtectedRoute />}>
+          <Route path='/' element={<Home/>}/>
           <Route path="/ventas" element={<Ventas />}/>
           <Route path="/inventario" element={<Inventario />}/>
           <Route path="/administracion" element={<Administracion />}/>
           <Route path="/recetas" element={<Recetas />}/>
+          </Route>
         </Routes>
       
 

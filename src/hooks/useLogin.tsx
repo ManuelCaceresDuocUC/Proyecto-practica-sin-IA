@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -9,15 +9,14 @@ interface Usuario {
 }
 
 export const useLogin = () => {
-
+    const API_URL = "http://localhost:8080/api/usuarios";
     const navigate = useNavigate();
-    
-    // Usuarios "quemados" (mock data) para probar el login
-    const [usuariosMock] = useState<Usuario[]>([
-        { usuario: 'admin', contrasena: '1234' },
-        { usuario: 'damian', contrasena: 'duoc2024' }
-    ]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
+
+    
+    
 
     const [usuarios, setUsuarios] = useState<Usuario[]>([
         
@@ -32,41 +31,61 @@ export const useLogin = () => {
         setUsuarios([...usuarios, nuevo])
     }
 
-    const logearUsuario = (usuario: Usuario) => {
-        const usuarioEncontrado = usuariosMock.find(
-            (u) => u.usuario === usuario.usuario && u.contrasena === usuario.contrasena
-        );
-        if (usuarioEncontrado) {
-            Swal.fire({
-                        title: `¡Bienvenido ${usuarioEncontrado.usuario}!`,
-                        
-                        icon: 'success',
-                        timer: 2000,
-                        showConfirmButton: false,
-                        showCancelButton: false, // Muestra el botón cancelar
-                        confirmButtonColor: '#3085d6', // Azul
-                        confirmButtonText: 'Aceptar',
-                        
-                    })
-            
-            // Aquí podrías guardar en localStorage que el usuario entró
-            localStorage.setItem('user_session', usuarioEncontrado.usuario);
-            
-            navigate('/'); // Redirigimos al Home (Inventario)
-        } else {
-            Swal.fire({
-                        title: 'Usuario o contraseña incorrecto!',
-                        text: "Por favor inrgesa un usuario o contraseña valido",
-                        icon: 'warning',
-                        showCancelButton: false, // Muestra el botón cancelar
-                        confirmButtonColor: '#3085d6', // Azul
-                        confirmButtonText: 'Aceptar',
-                        
-                    })
-            
-        ;
+    const cargarUsuarios = async () => {
+        try {
+            setLoading(true);
+            const respuesta = await fetch(API_URL);
+            if (!respuesta.ok) throw new Error("Error al conectar con el servidor");
+            const datos = await respuesta.json();
+            setUsuarios(datos);
+        } catch (err: unknown) {
+            const mensaje = err instanceof Error ? err.message : "Error desconocido";
+            setError(mensaje);
+        } finally {
+            setLoading(false);
+        }
     }
-}
+    useEffect(() => {
+            cargarUsuarios();
+        }, []);
+
+    const logearUsuario = async (credenciales: Usuario) => {
+        setLoading(true); // <--- Aquí usamos setLoading
+        setError(null);
+        try {
+            const respuesta = await fetch(`${API_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(credenciales)
+            });
+
+            if (respuesta.ok) {
+                const usuarioLogeado = await respuesta.json();
+                
+                Swal.fire({
+                    title: `¡Bienvenido ${usuarioLogeado.usuario}!`,
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
+                localStorage.setItem('user_session', JSON.stringify(usuarioLogeado));
+                navigate('/');
+            } else {
+                throw new Error("Credenciales inválidas");
+            }
+        } catch (err) {
+            Swal.fire({
+                title: `Error de acceso ${err}` ,
+                text: "Usuario o contraseña incorrectos",
+                icon: 'error',
+                confirmButtonText: 'Reintentar'
+            });
+        }
+        finally{
+            setLoading(false); // <--- Aquí usamos setLoading
+            }
+};
 
     
 
@@ -75,5 +94,6 @@ export const useLogin = () => {
         eliminarUsuario,
         agregarUsuario,
         logearUsuario,
+        loading, error,
     };
 };
