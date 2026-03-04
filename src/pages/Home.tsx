@@ -59,6 +59,11 @@ export const Home = () => {
             Modulo de Inventario
           </button>
         </Link>
+        <Link to="/movimientos">
+          <button className='w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95'>
+            Modulo de Movimientos
+          </button>
+        </Link>
         <Link to="/recetas">
           <button className='w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95'>
             Modulo de Recetas

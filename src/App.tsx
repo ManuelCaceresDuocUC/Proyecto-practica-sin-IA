@@ -7,6 +7,7 @@ import { Administracion } from './pages/Administracion';
 import { Login } from './pages/Login';
 import { Recetas } from './pages/Recetas';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { Movimientos } from './pages/Movimientos';
 
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
           <Route path="/inventario" element={<Inventario />}/>
           <Route path="/administracion" element={<Administracion />}/>
           <Route path="/recetas" element={<Recetas />}/>
+          <Route path='/movimientos' element={<Movimientos/>}/>
           </Route>
         </Routes>
       
