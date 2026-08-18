@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { apiFetch } from '../helpers/apiFetch';
-
 interface Metricas {
   ventasHoy: number;
   ivaMes: number;
@@ -31,7 +30,6 @@ interface Categoria {
   nombre: string;
 }
 
-// ✨ NUEVO: Interfaz para recibir el historial de cuadraturas de caja
 interface Cuadratura {
   id: number;
   cajeroId: number;
@@ -43,6 +41,16 @@ interface Cuadratura {
   totalRealFisico: number;
   diferencia: number;
   estado: string;
+}
+
+// ✨ Interfaz genérica para los clientes
+interface ClienteInfo {
+  id: number;
+  nombre: string;
+  rut: string;
+  telefono?: string;
+  limiteCredito: number;
+  deudaActual: number;
 }
 
 export const Administracion = () => {
@@ -67,8 +75,17 @@ export const Administracion = () => {
   const [editandoCategoriaId, setEditandoCategoriaId] = useState<number | null>(null);
   const [editandoNombre, setEditandoNombre] = useState('');
 
-  // ✨ NUEVO: Estado para almacenar el historial de cuadraturas
+  // Estados para Cuadraturas
   const [cuadraturas, setCuadraturas] = useState<Cuadratura[]>([]);
+  const [filtroCuad, setFiltroCuad] = useState<'semana' | 'mes' | 'todas'>('semana');
+  
+  // Estados para Gestión de Créditos y Clientes
+  const [cargandoCierreMes, setCargandoCierreMes] = useState(false);
+  const [mostrarModalClientes, setMostrarModalClientes] = useState(false);
+  const [clientes, setClientes] = useState<ClienteInfo[]>([]);
+  const [cargandoClientes, setCargandoClientes] = useState(false);
+  const [busquedaCliente, setBusquedaCliente] = useState('');
+  
 
   useEffect(() => {
     if (usuarioRol !== 'admin') {
@@ -92,7 +109,6 @@ export const Administracion = () => {
     const cargarDatosPanel = async () => {
       try {
         setCargando(true);
-        // ✨ AGREGADO: Llamada al endpoint del historial de cajas
         const [resMetricas, resEmpleados, resNotas, resCategorias, resCuadraturas] = await Promise.all([
           apiFetch(`${API_URL}/admin/metricas?empresaId=${empresaId}`),
           apiFetch(`${API_URL}/usuarios?empresaId=${empresaId}`),
@@ -133,6 +149,108 @@ export const Administracion = () => {
     cargarMasVendidos();
   }, [API_URL, periodo, usuarioRol, empresaId]);
 
+  // ✨ FILTRO DE CUADRATURAS
+  const cuadraturasFiltradas = cuadraturas.filter(c => {
+    if (filtroCuad === 'todas') return true;
+    const fechaApertura = new Date(c.fechaApertura);
+    const ahora = new Date();
+    // Calcular la diferencia en días
+    const diasDiferencia = (ahora.getTime() - fechaApertura.getTime()) / (1000 * 3600 * 24);
+    
+    if (filtroCuad === 'semana') return diasDiferencia <= 7;
+    if (filtroCuad === 'mes') return diasDiferencia <= 30;
+    return true;
+  }).sort((a, b) => new Date(b.fechaApertura).getTime() - new Date(a.fechaApertura).getTime()); // Ordenar más recientes primero
+
+
+  // ✨ CARGAR Y ABRIR MODAL DE CLIENTES
+  const abrirModalClientes = async () => {
+    setMostrarModalClientes(true);
+    setCargandoClientes(true);
+    setBusquedaCliente('');
+    try {
+      const response = await apiFetch(`${API_URL}/clientes?empresaId=${empresaId}`);
+      if (response.ok) {
+        setClientes(await response.json());
+      } else {
+        throw new Error('No se pudo obtener la lista de clientes');
+      }
+    } catch (error) {
+      console.error(error);
+      Swal.fire('Error', 'No se pudo cargar el directorio de clientes.', 'error');
+      setMostrarModalClientes(false);
+    } finally {
+      setCargandoClientes(false);
+    }
+  };
+
+  const clientesFiltrados = clientes.filter(c => 
+    c.nombre.toLowerCase().includes(busquedaCliente.toLowerCase()) || 
+    c.rut.toLowerCase().includes(busquedaCliente.toLowerCase())
+  );
+
+  const handleCierreMesCreditos = async () => {
+    const confirmacion = await Swal.fire({
+      title: '¿Generar Cierre de Créditos?',
+      text: 'Se descargará un archivo Excel con todos los clientes que mantienen deudas activas hasta el día de hoy.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#059669', 
+      cancelButtonColor: '#64748B',
+      confirmButtonText: 'Sí, generar reporte',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!confirmacion.isConfirmed) return;
+
+    setCargandoCierreMes(true);
+    try {
+      const response = await apiFetch(`${API_URL}/clientes?empresaId=${empresaId}`);
+      if (!response.ok) throw new Error('No se pudo obtener la información de los clientes');
+
+      const data: ClienteInfo[] = await response.json();
+      const deudores = data.filter(cliente => cliente.deudaActual > 0);
+
+      if (deudores.length === 0) {
+        Swal.fire('Información', 'Actualmente no hay clientes con deudas pendientes registradas.', 'info');
+        return;
+      }
+
+      const cabeceras = ['ID Cliente', 'Nombre o Razón Social', 'RUT', 'Teléfono', 'Límite de Crédito', 'Deuda Actual Pendiente'];
+      let contenidoCSV = cabeceras.join(';') + '\n';
+
+      deudores.forEach(cliente => {
+        const fila = [
+          cliente.id,
+          `"${cliente.nombre}"`,
+          `"${cliente.rut}"`,
+          `"${cliente.telefono || 'No registrado'}"`,
+          cliente.limiteCredito,
+          cliente.deudaActual
+        ];
+        contenidoCSV += fila.join(';') + '\n';
+      });
+
+      const blob = new Blob(['\uFEFF' + contenidoCSV], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const enlace = document.createElement('a');
+      const fechaActual = new Date().toISOString().split('T')[0];
+      
+      enlace.href = url;
+      enlace.setAttribute('download', `Cierre_Creditos_${fechaActual}.csv`);
+      document.body.appendChild(enlace);
+      enlace.click();
+      document.body.removeChild(enlace);
+
+      Swal.fire('Éxito', 'El reporte de deudas ha sido generado y descargado correctamente.', 'success');
+    } catch (error) {
+      console.error("Error al exportar reporte de deudas:", error);
+      Swal.fire('Error', 'Hubo un problema al generar el archivo. Verifique su conexión.', 'error');
+    } finally {
+      setCargandoCierreMes(false);
+    }
+  };
+
   const agregarNota = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevaNota.trim()) return;
@@ -149,8 +267,7 @@ export const Administracion = () => {
         setNuevaNota('');
       }
     } catch (error) {
-      console.error("Detalle del error:", error); 
-      Swal.fire('Error', 'No se pudo procesar la solicitud.', 'error');
+      console.error(error); 
     }
   };
 
@@ -160,8 +277,7 @@ export const Administracion = () => {
         setNotas(notas.filter(n => n.id !== id));
       }
     } catch (error) {
-      console.error("Detalle del error:", error);
-      Swal.fire('Error', 'No se pudo procesar la solicitud.', 'error');
+      console.error(error);
     }
   };
 
@@ -180,11 +296,10 @@ export const Administracion = () => {
         const creado = await res.json();
         setCategorias([...categorias, creado]);
         setNuevaCategoria('');
-        Swal.fire('Confirmación', 'La categoría ha sido registrada correctamente.', 'success');
+        Swal.fire('Confirmación', 'La categoría ha sido registrada.', 'success');
       }
     } catch (error) {
-      console.error("Detalle del error:", error);
-      Swal.fire('Error', 'No se pudo procesar la solicitud.', 'error');
+      console.error(error);
     }
   };
 
@@ -198,28 +313,23 @@ export const Administracion = () => {
     try {
       const res = await apiFetch(`${API_URL}/categorias/${id}`, {
         method: 'PUT',
-        body: JSON.stringify({ 
-          nombre: editandoNombre,
-          empresa: { id: parseInt(empresaId) }
-        })
+        body: JSON.stringify({ nombre: editandoNombre, empresa: { id: parseInt(empresaId) } })
       });
       if (res.ok) {
         const actualizado = await res.json();
         setCategorias(categorias.map(cat => cat.id === id ? actualizado : cat));
         setEditandoCategoriaId(null);
         setEditandoNombre('');
-        Swal.fire('Confirmación', 'La categoría ha sido actualizada correctamente.', 'success');
       }
     } catch (error) {
-      console.error("Detalle del error:", error);
-      Swal.fire('Error', 'No se pudo procesar la solicitud.', 'error');
+      console.error(error);
     }
   };
 
   const eliminarCategoria = async (id: number) => {
     const result = await Swal.fire({
       title: '¿Confirmar eliminación?',
-      text: "Si la categoría posee productos vinculados, el sistema impedirá su eliminación por seguridad del inventario.",
+      text: "Si la categoría posee productos vinculados, no se podrá eliminar.",
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#DC2626',
@@ -234,13 +344,12 @@ export const Administracion = () => {
       const res = await apiFetch(`${API_URL}/categorias/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setCategorias(categorias.filter(cat => cat.id !== id));
-        Swal.fire('Confirmación', 'Categoría eliminada del registro.', 'success');
+        Swal.fire('Confirmación', 'Categoría eliminada.', 'success');
       } else {
-        Swal.fire('Acción Denedaga', 'No es posible eliminar esta categoría porque contiene productos registrados en el inventario actual.', 'error');
+        Swal.fire('Error', 'No es posible eliminar esta categoría.', 'error');
       }
     } catch (error) {
-      console.error("Detalle del error:", error);
-      Swal.fire('Error', 'No se pudo procesar la solicitud.', 'error');
+      console.error(error);
     }
   };
 
@@ -248,7 +357,7 @@ export const Administracion = () => {
   if (cargando) return <div className="text-center mt-20 font-medium text-slate-600 text-sm tracking-wide uppercase">Cargando panel de control...</div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 font-sans text-slate-800">
+    <div className="min-h-screen bg-slate-50 p-8 font-sans text-slate-800 relative">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center mb-8 gap-4 border-b border-slate-200 pb-6">
         <div>
           <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">Panel de Administración</h1>
@@ -263,6 +372,7 @@ export const Administracion = () => {
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         
+        {/* COLUMNA PRINCIPAL (IZQUIERDA) */}
         <div className="lg:col-span-2 space-y-8">
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -284,14 +394,136 @@ export const Administracion = () => {
             </div>
           </div>
 
-          {/* ✨ NUEVO: Tabla de Cuadraturas de Caja */}
+          {/* ✨ MONITOREO DE CAJAS EN VIVO ARREGLADO */}
+          {cuadraturas.filter(c => c.estado === 'ABIERTA').length > 0 && (
+            <div className="bg-slate-900 rounded shadow-md border border-slate-800 p-6 mb-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4">
+                <span className="flex items-center gap-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  En Vivo
+                </span>
+              </div>
+              
+              <h2 className="text-lg font-semibold text-white uppercase tracking-wide mb-5 flex items-center gap-2">
+                Cajas Actualmente Abiertas
+              </h2>
+              
+              {/* Cambiado a maximo 2 columnas para evitar descuadre */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {cuadraturas.filter(c => c.estado === 'ABIERTA').map(cajaAbierta => {
+                  const nombreEmpleado = cajaAbierta.cajeroNombre || empleados.find(emp => emp.id === cajaAbierta.cajeroId)?.usuario || `ID: ${cajaAbierta.cajeroId}`;
+                  
+                  const datosCaja = cajaAbierta as any;
+                  
+                  const fondoInicial = cajaAbierta.montoApertura || datosCaja.fondoInicial || 0;
+                  const ventasEfectivo = datosCaja.ventasEfectivo || 0;
+                  const ingresosExtra = datosCaja.ingresosExtra || 0;
+                  const abonosCredito = datosCaja.abonosCredito || 0;
+                  const retiros = datosCaja.retiros || 0;
+                  
+                  const totalEnCaja = datosCaja.totalEnCaja || cajaAbierta.totalSistema || (fondoInicial + ventasEfectivo + ingresosExtra + abonosCredito - retiros);
+                  
+                  const ventasTarjeta = datosCaja.ventasTarjeta || 0;
+                  const ventasCredito = datosCaja.ventasCredito || 0;
+                  const ventaAcumulada = ventasEfectivo + ventasTarjeta + ventasCredito;
+
+                  return (
+                    <div key={cajaAbierta.id} className="bg-white rounded p-5 shadow-lg border border-slate-200 text-sm flex flex-col">
+                      
+                      <div className="flex justify-between items-start mb-4 border-b border-slate-200 pb-3 gap-2">
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-bold text-slate-900 uppercase tracking-wide truncate">{nombreEmpleado}</h3>
+                          <p className="text-slate-500 text-xs mt-0.5">Turno #{cajaAbierta.id}</p>
+                        </div>
+                        <div className="text-right text-xs text-slate-500 shrink-0">
+                          <p>Apertura:</p>
+                          <p className="font-mono text-slate-700 font-semibold mt-0.5">
+                            {new Date(cajaAbierta.fechaApertura).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 font-mono text-xs text-slate-600 flex-1">
+                        
+                        <h3 className="font-sans font-semibold text-slate-700 mb-2 mt-1 uppercase tracking-wider text-[11px]">Movimientos de Efectivo</h3>
+                        
+                        {/* Se agrego items-center, gap-2 y shrink-0 a los valores numéricos */}
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 gap-2">
+                          <span className="font-sans leading-tight">Fondo Inicial:</span>
+                          <span className="font-semibold text-slate-800 whitespace-nowrap shrink-0">${fondoInicial.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 gap-2">
+                          <span className="font-sans leading-tight">Ventas en Efectivo:</span>
+                          <span className="font-semibold text-slate-800 whitespace-nowrap shrink-0">+ ${ventasEfectivo.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 gap-2">
+                          <span className="font-sans leading-tight">Ingresos Extra:</span>
+                          <span className="font-semibold text-slate-800 whitespace-nowrap shrink-0">+ ${ingresosExtra.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 gap-2">
+                          <span className="font-sans leading-tight">Abonos Crédito (Efectivo):</span>
+                          <span className="font-semibold text-slate-800 whitespace-nowrap shrink-0">+ ${abonosCredito.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 gap-2">
+                          <span className="font-sans leading-tight">Retiros Operativos:</span>
+                          <span className="font-semibold text-red-700 whitespace-nowrap shrink-0">- ${retiros.toLocaleString()}</span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center border-t border-slate-300 pt-2.5 mt-2 mb-4 text-sm gap-2">
+                          <span className="font-sans font-bold text-slate-900 leading-tight">Total Físico en Caja:</span>
+                          <span className="font-bold text-emerald-600 whitespace-nowrap shrink-0">${totalEnCaja.toLocaleString()}</span>
+                        </div>
+
+                        <h3 className="font-sans font-semibold text-slate-700 mb-2 mt-4 uppercase tracking-wider text-[11px]">Otros Medios y Totales</h3>
+                        
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 gap-2">
+                          <span className="font-sans leading-tight">Transacciones con Tarjeta:</span>
+                          <span className="font-semibold text-slate-800 whitespace-nowrap shrink-0">+ ${ventasTarjeta.toLocaleString()}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 mt-1 gap-2">
+                          <span className="font-sans leading-tight">Ventas a Crédito (Vales):</span>
+                          <span className="font-semibold text-slate-800 whitespace-nowrap shrink-0">+ ${ventasCredito.toLocaleString()}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center bg-slate-100 p-3 rounded border border-slate-200 mt-4 text-sm gap-2">
+                          <span className="font-sans font-bold text-slate-900 uppercase tracking-wide leading-tight">
+                            Venta Total Acumulada
+                          </span>
+                          <span className="font-bold text-slate-900 whitespace-nowrap shrink-0">
+                            ${ventaAcumulada.toLocaleString()}
+                          </span>
+                        </div>
+
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {/* ✨ FIN MONITOREO EN VIVO */}
+
           <div className="bg-white rounded shadow-sm border border-slate-200 p-6">
-            <h2 className="text-base font-semibold text-slate-800 uppercase tracking-wide mb-1">Cuadraturas de Caja</h2>
-            <p className="text-slate-500 text-xs mb-4 border-b border-slate-100 pb-3">Registro y control de aperturas, cierres y diferencias de efectivo por cajero.</p>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 border-b border-slate-100 pb-3 gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-800 uppercase tracking-wide">Cuadraturas de Caja</h2>
+                <p className="text-slate-500 text-xs">Registro y control de diferencias de efectivo por cajero.</p>
+              </div>
+              <select 
+                value={filtroCuad} 
+                onChange={(e) => setFiltroCuad(e.target.value as 'semana' | 'mes' | 'todas')}
+                className="bg-slate-50 border border-slate-300 text-slate-700 font-medium p-2 rounded text-sm outline-none cursor-pointer focus:border-slate-500"
+              >
+                <option value="semana">Últimos 7 días</option>
+                <option value="mes">Últimos 30 días</option>
+                <option value="todas">Histórico Completo</option>
+              </select>
+            </div>
             
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
+            <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+              <table className="w-full text-left text-sm relative">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium sticky top-0">
                   <tr>
                     <th className="p-3">Turno / Cajero</th>
                     <th className="p-3">Horario</th>
@@ -302,12 +534,10 @@ export const Administracion = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {cuadraturas.map(c => {
+                  {cuadraturasFiltradas.map(c => {
                     const diferencia = c.diferencia || 0;
                     const esFaltante = diferencia < 0;
                     const esSobrante = diferencia > 0;
-                    
-                    // Cruza el ID con la lista de personal si el backend no manda el nombre en el JSON
                     const nombreEmpleado = c.cajeroNombre || empleados.find(emp => emp.id === c.cajeroId)?.usuario || `ID: ${c.cajeroId}`;
 
                     return (
@@ -344,9 +574,9 @@ export const Administracion = () => {
                       </tr>
                     );
                   })}
-                  {cuadraturas.length === 0 && (
+                  {cuadraturasFiltradas.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="text-center p-6 text-slate-400 text-sm">No hay registros de cuadraturas disponibles para esta empresa.</td>
+                      <td colSpan={6} className="text-center p-8 text-slate-400 text-sm">No hay registros para el período seleccionado.</td>
                     </tr>
                   )}
                 </tbody>
@@ -418,96 +648,35 @@ export const Administracion = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded shadow-sm border border-slate-200 p-6">
-            <h2 className="text-base font-semibold text-slate-800 uppercase tracking-wide mb-1">Categorías de Productos</h2>
-            <p className="text-slate-500 text-xs mb-4 border-b border-slate-100 pb-3">Gestión de las agrupaciones del catálogo comercial.</p>
-            
-            <form onSubmit={agregarCategoria} className="flex gap-2 mb-6">
-              <input 
-                type="text" 
-                placeholder="Nombre de la nueva categoría..." 
-                value={nuevaCategoria}
-                onChange={(e) => setNuevaCategoria(e.target.value)}
-                className="flex-1 p-2.5 rounded border border-slate-300 bg-white focus:outline-none focus:border-slate-500 text-sm"
-              />
-              <button type="submit" className="bg-slate-800 hover:bg-slate-900 text-white font-medium px-4 rounded text-sm transition-colors">
-                Agregar Categoría
-              </button>
-            </form>
+        </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
-                  <tr>
-                    <th className="p-3 w-16">ID</th>
-                    <th className="p-3">Nombre</th>
-                    <th className="p-3 text-right w-36">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {categorias.map(cat => (
-                    <tr key={cat.id} className="hover:bg-slate-50">
-                      <td className="p-3 text-slate-400 font-mono">#{cat.id}</td>
-                      <td className="p-3">
-                        {editandoCategoriaId === cat.id ? (
-                          <input 
-                            type="text" 
-                            value={editandoNombre} 
-                            onChange={(e) => setEditandoNombre(e.target.value)}
-                            className="w-full p-1.5 border border-slate-400 rounded text-sm bg-white focus:outline-none font-medium text-slate-800"
-                          />
-                        ) : (
-                          <span className="font-medium text-slate-800">{cat.nombre}</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right">
-                        {editandoCategoriaId === cat.id ? (
-                          <div className="flex justify-end gap-1">
-                            <button 
-                              onClick={() => guardarEdicion(cat.id)}
-                              className="bg-slate-800 hover:bg-slate-900 text-white px-2 py-1 rounded text-xs font-medium transition-colors"
-                            >
-                              Guardar
-                            </button>
-                            <button 
-                              onClick={() => setEditandoCategoriaId(null)}
-                              className="bg-slate-400 hover:bg-slate-500 text-white px-2 py-1 rounded text-xs font-medium transition-colors"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex justify-end gap-3">
-                            <button 
-                              onClick={() => iniciarEdicion(cat)}
-                              className="text-slate-600 hover:text-slate-900 text-xs font-medium underline transition-colors"
-                            >
-                              Editar
-                            </button>
-                            <button 
-                              onClick={() => eliminarCategoria(cat.id)}
-                              className="text-red-600 hover:text-red-800 text-xs font-medium underline transition-colors"
-                            >
-                              Eliminar
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {categorias.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="text-center p-6 text-slate-400 text-sm">No existen categorías registradas en el sistema.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+        {/* COLUMNA DERECHA */}
+        <div className="space-y-8">
+          
+          <div className="bg-white rounded shadow-sm border border-slate-200 p-6">
+            <h2 className="text-base font-semibold text-slate-800 uppercase tracking-wide mb-1">Gestión de Cartera</h2>
+            <p className="text-slate-500 text-xs mb-4 border-b border-slate-100 pb-3">
+              Administración del directorio de clientes y reportes de deudores.
+            </p>
+            
+            <div className="space-y-3">
+              <button
+                onClick={handleCierreMesCreditos}
+                disabled={cargandoCierreMes}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded shadow-sm transition-colors text-xs uppercase tracking-wider disabled:opacity-50"
+              >
+                {cargandoCierreMes ? 'Generando Archivo...' : 'Cerrar Mes y Exportar Excel'}
+              </button>
+
+              <button
+                onClick={abrirModalClientes}
+                className="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-3 rounded shadow-sm transition-colors text-xs uppercase tracking-wider"
+              >
+                Ver Directorio de Clientes
+              </button>
             </div>
           </div>
 
-        </div>
-
-        <div className="space-y-8">
           <div className="bg-white rounded shadow-sm border border-slate-200 p-6 flex flex-col h-full max-h-[500px]">
             <h2 className="text-base font-semibold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-100 pb-3">Notas Administrativas</h2>
             <form onSubmit={agregarNota} className="mb-4">
@@ -535,20 +704,151 @@ export const Administracion = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded shadow-sm border border-slate-200 p-6">
-            <h2 className="text-base font-semibold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-100 pb-3">Notificaciones del Sistema</h2>
-            <ul className="space-y-2 text-sm">
-              <li className="p-3 bg-slate-50 text-slate-700 rounded border border-slate-200 font-medium">
-                Alerta de inventario: Existen 5 productos con stock crítico inferior al límite permitido.
-              </li>
-              <li className="p-3 bg-slate-50 text-slate-700 rounded border border-slate-200 font-medium">
-                Recordatorio contable: Cierre de mes en curso. Recuerde exportar los reportes financieros para auditoría.
-              </li>
-            </ul>
+          {/* ✨ GESTIÓN DE CATEGORÍAS MOVIDA ADENTRO DE LA COLUMNA DERECHA */}
+          <div className="bg-white rounded shadow-sm border border-slate-200 p-6 flex flex-col h-full max-h-[500px]">
+            <h2 className="text-base font-semibold text-slate-800 uppercase tracking-wide mb-4 border-b border-slate-100 pb-3">Gestión de Categorías</h2>
+            
+            <form onSubmit={agregarCategoria} className="mb-4 flex gap-2">
+              <input 
+                type="text" 
+                placeholder="Nueva categoría..." 
+                value={nuevaCategoria}
+                onChange={(e) => setNuevaCategoria(e.target.value)}
+                className="w-full p-2.5 rounded border border-slate-300 bg-white focus:outline-none focus:border-slate-500 text-sm"
+              />
+              <button 
+                type="submit" 
+                className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+              >
+                Agregar
+              </button>
+            </form>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {categorias.map(cat => (
+                <div key={cat.id} className="bg-slate-50 p-3 rounded border border-slate-200 flex justify-between items-center gap-2 text-sm">
+                  {editandoCategoriaId === cat.id ? (
+                    <div className="flex w-full gap-2 items-center">
+                      <input
+                        type="text"
+                        value={editandoNombre}
+                        onChange={(e) => setEditandoNombre(e.target.value)}
+                        className="w-full p-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:border-slate-500"
+                        autoFocus
+                      />
+                      <button onClick={() => guardarEdicion(cat.id)} className="text-emerald-600 hover:text-emerald-700 font-semibold text-xs transition-colors">
+                        Guardar
+                      </button>
+                      <button onClick={() => setEditandoCategoriaId(null)} className="text-slate-400 hover:text-slate-600 font-semibold text-xs transition-colors">
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="font-medium text-slate-700">{cat.nombre}</span>
+                      <div className="flex gap-3">
+                        <button onClick={() => iniciarEdicion(cat)} className="text-blue-600 hover:text-blue-800 font-medium text-xs transition-colors">
+                          Editar
+                        </button>
+                        <button onClick={() => eliminarCategoria(cat.id)} className="text-red-500 hover:text-red-700 font-medium text-xs transition-colors">
+                          Eliminar
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              {categorias.length === 0 && <p className="text-center text-slate-400 text-sm mt-4">Sin categorías registradas.</p>}
+            </div>
           </div>
+
         </div>
 
       </div>
+
+      {/* ✨ MODAL DE DIRECTORIO DE CLIENTES */}
+      {mostrarModalClientes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl flex flex-col max-h-[90vh]">
+            
+            <div className="flex justify-between items-center p-5 border-b border-slate-200 bg-slate-50 rounded-t-lg">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Directorio de Clientes</h2>
+                <p className="text-sm text-slate-500">Busca, visualiza y audita la cartera completa de clientes registrados.</p>
+              </div>
+              <button 
+                onClick={() => setMostrarModalClientes(false)}
+                className="text-slate-400 hover:text-slate-700 text-2xl font-semibold leading-none focus:outline-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-5 border-b border-slate-100">
+              <input 
+                type="text"
+                placeholder="Buscar cliente por nombre o RUT..."
+                value={busquedaCliente}
+                onChange={(e) => setBusquedaCliente(e.target.value)}
+                className="w-full p-3 rounded border border-slate-300 bg-white focus:outline-none focus:border-slate-500 text-sm"
+              />
+            </div>
+
+            <div className="p-5 overflow-y-auto flex-1 bg-slate-50">
+              {cargandoClientes ? (
+                <div className="text-center py-10 text-slate-500">Cargando directorio...</div>
+              ) : (
+                <div className="overflow-x-auto bg-white border border-slate-200 rounded">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 font-medium sticky top-0">
+                      <tr>
+                        <th className="p-3">ID / RUT</th>
+                        <th className="p-3">Nombre Cliente</th>
+                        <th className="p-3">Teléfono</th>
+                        <th className="p-3 text-right">Límite Crédito</th>
+                        <th className="p-3 text-right">Deuda Actual</th>
+                        <th className="p-3 text-center">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {clientesFiltrados.map(cliente => (
+                        <tr key={cliente.id} className="hover:bg-slate-50">
+                          <td className="p-3 text-slate-500 whitespace-nowrap">
+                            <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded mr-2">#{cliente.id}</span>
+                            {cliente.rut}
+                          </td>
+                          <td className="p-3 font-medium text-slate-800">{cliente.nombre}</td>
+                          <td className="p-3 text-slate-600">{cliente.telefono || 'N/A'}</td>
+                          <td className="p-3 text-right text-slate-700 font-mono">
+                            ${cliente.limiteCredito.toLocaleString('es-CL')}
+                          </td>
+                          <td className={`p-3 text-right font-bold font-mono ${cliente.deudaActual > 0 ? 'text-red-600' : 'text-slate-600'}`}>
+                            ${cliente.deudaActual.toLocaleString('es-CL')}
+                          </td>
+                          <td className="p-3 text-center">
+                            {cliente.deudaActual > 0 ? (
+                              <span className="px-2 py-1 rounded bg-red-100 text-red-700 text-xs font-semibold">Con Deuda</span>
+                            ) : (
+                              <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 text-xs font-semibold">Al Día</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {clientesFiltrados.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="text-center p-8 text-slate-400">
+                            No se encontraron clientes que coincidan con la búsqueda.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
-  );
-};
+  );}

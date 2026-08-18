@@ -7,8 +7,15 @@ export const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Estado para controlar el menú en móvil
 
   const handleLogout = () => {
-    localStorage.removeItem('user_session');
-    navigate('/login');
+    // 🟢 Opción recomendada: Limpia todo el almacenamiento local al salir
+    localStorage.clear(); 
+    
+    // Si prefieres borrar claves específicas en lugar de todo:
+    // localStorage.removeItem('user_session');
+    // localStorage.removeItem('usuarioRol');
+    // localStorage.removeItem('empresaId');
+
+    navigate('/login', { replace: true });
   };
 
   const menuOptions = [

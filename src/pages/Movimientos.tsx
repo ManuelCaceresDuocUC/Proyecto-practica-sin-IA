@@ -175,19 +175,24 @@ export const Movimientos = () => {
                         
                         <div className="p-6">
                             <div className="space-y-3 max-h-[60vh] overflow-y-auto divide-y divide-slate-100 pr-1">
-                                {ventaSeleccionada.detalles.map((det) => (
-                                    <div key={det.id} className="flex justify-between items-center pt-2 first:pt-0">
-                                        <div className="text-left">
-                                            <p className="font-medium text-slate-800">{det.producto.descripcion}</p>
-                                            <p className="text-xs text-slate-500 font-mono mt-0.5">
-                                                {det.cantidad} und. &times; ${det.precioUnitario}
+                                {ventaSeleccionada.detalles.map((det) => {
+                                    // ✨ NUEVO: Calculamos el precio real buscando en las propiedades más comunes
+                                    const precioReal = det.precioUnitario || det.precio || det.producto?.precio || 0;
+                                    
+                                    return (
+                                        <div key={det.id} className="flex justify-between items-center pt-2 first:pt-0">
+                                            <div className="text-left">
+                                                <p className="font-medium text-slate-800">{det.producto.descripcion}</p>
+                                                <p className="text-xs text-slate-500 font-mono mt-0.5">
+                                                    {det.cantidad} und. &times; ${precioReal}
+                                                </p>
+                                            </div>
+                                            <p className="font-semibold text-slate-900">
+                                                ${(det.cantidad * precioReal).toLocaleString()}
                                             </p>
                                         </div>
-                                        <p className="font-semibold text-slate-900">
-                                            ${(det.cantidad * det.precioUnitario).toLocaleString()}
-                                        </p>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                             <button 
                                 onClick={() => setVentaSeleccionada(null)}

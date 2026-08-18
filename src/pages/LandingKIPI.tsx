@@ -1,8 +1,6 @@
-
-
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react'; // 🟢 Agregamos useEffect
+import { Link, useNavigate } from 'react-router-dom'; // 🟢 Agregamos useNavigate
 import { 
-   
   ArrowRight, 
   CheckCircle2, 
   Zap, 
@@ -12,6 +10,18 @@ import {
 } from 'lucide-react';
 
 export const LandingKIPI = () => {
+  const navigate = useNavigate(); // 🟢 Inicializamos el hook de navegación
+
+  // 🟢 EFECTO PARA REDIRIGIR SI YA HAY SESIÓN
+  useEffect(() => {
+    // Aquí validas tu sesión. Asegúrate de usar la misma key que usas al hacer el login
+    const sesionActiva = localStorage.getItem('usuarioRol'); 
+
+    if (sesionActiva) {
+      navigate('/home', { replace: true });
+    }
+  }, [navigate]);
+
   return (
   <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col justify-between">
     
@@ -238,4 +248,4 @@ export const LandingKIPI = () => {
     </footer>
 
   </div>
-);}
+);};

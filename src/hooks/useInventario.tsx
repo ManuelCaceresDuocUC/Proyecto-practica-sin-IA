@@ -134,22 +134,21 @@ export const useInventario = () => {
 
     const editarProducto = async (id: number, datosActualizados: Omit<Producto, 'id'>) => {
         try {
-            // ✨ 5. Uso de apiFetch para actualizar
             const res = await apiFetch(`${API_URL}/${id}`, {
                 method: 'PATCH',
                 body: JSON.stringify(datosActualizados)
             });
             if (!res.ok) throw new Error("Error al actualizar en el servidor");
-            const productoServidor = await res.json();
-            setProductos(prevProductos => 
-                prevProductos.map(p => p.id === id ? productoServidor : p)
-            );
+            
+            // 🟢 Re-cargamos la lista completa para reflejar relaciones/categorías actualizadas desde la base de datos
+            await cargarProductos();
+            
             Swal.fire('¡Éxito!', 'Producto actualizado correctamente', 'success');
         } catch (err: unknown) {
             console.error("Error al editar:", err);
             Swal.fire('Error', 'No se pudo modificar el producto', 'error');
         }
-    };
+    }; // 🟢 CORRECCIÓN: Faltaba esta llave de cierre de la función editarProducto
 
     const obtenerStockVisual = (producto: Producto) => {
         if (producto.esInsumo || !producto.receta || producto.receta.length === 0) {

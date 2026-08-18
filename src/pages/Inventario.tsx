@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import { LectorCamara } from '../components/LectorCamara';
 import { useNavigate } from 'react-router-dom'; 
+import { apiFetch } from '../helpers/apiFetch';
 
 interface ItemRecetaLocal {
   insumoId: number;
@@ -45,15 +46,10 @@ export const Inventario = () => {
     productosFiltrados,
     busqueda,
     setBusqueda,
-    cargarProductos 
+     
   } = useInventario();
   
-  // 🟢 CORRECCIÓN 2: Forzamos el refresco de datos cada vez que el usuario entra a la pantalla de Inventario
-  useEffect(() => {
-    if (cargarProductos) {
-      cargarProductos();
-    }
-  }, []);
+  // 🟢 ELIMINAMOS EL USEEFFECT PROBLEMÁTICO AQUÍ
 
   const productosRef = useRef<Producto[]>([]);
 
@@ -68,15 +64,24 @@ export const Inventario = () => {
 
     const cargarCategorias = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/categorias`);
+        // 1. Obtenemos el empresaId (igual que en useInventario)
+        const empresaId = localStorage.getItem('empresaId') || "1";
+        
+        // 2. Usamos apiFetch e incluimos empresaId en la URL
+        const response = await apiFetch(`${import.meta.env.VITE_API_URL}/categorias?empresaId=${empresaId}`);
+        
         if (response.ok) {
           const data = await response.json();
-          setCategorias(data);
+          
+          // 3. Verificamos si los datos vienen en una propiedad 'content' (paginados) o como arreglo directo
+          const listaCategorias = Array.isArray(data) ? data : (data.content || []);
+          setCategorias(listaCategorias);
         }
       } catch (error) {
         console.error("Error al cargar las categorías:", error);
       }
     };
+
     cargarCategorias();
   }, [usuarioRol]);
 
@@ -195,7 +200,11 @@ export const Inventario = () => {
     }
 
     const codigoFinal = form.codigoBarras.trim() === "" ? generarCodigoProvisional() : form.codigoBarras;
-    const categoriaSeleccionada = categorias.find(c => c.id === form.categoriaId);
+
+    // 🟢 CORRECCIÓN: Parseamos el ID numérico y encontramos el objeto asegurando la conversión de tipos
+    const categoriaSeleccionada = form.categoriaId 
+      ? categorias.find(c => Number(c.id) === Number(form.categoriaId))
+      : null;
 
     const datosProducto = {
       descripcion: form.descripcion,
@@ -205,7 +214,8 @@ export const Inventario = () => {
       esInsumo: form.esInsumo,
       unidadMedida: form.unidadMedida,
       codigoBarras: codigoFinal,
-      categoria: form.categoriaId ? categoriaSeleccionada : undefined
+      // 🟢 CORRECCIÓN: Se cambia 'null' por 'undefined' para respetar la interfaz Omit<Producto, 'id'>
+      categoria: categoriaSeleccionada ? { id: categoriaSeleccionada.id, nombre: categoriaSeleccionada.nombre } : undefined
     };
 
     if (editandoId) {
@@ -220,36 +230,46 @@ export const Inventario = () => {
   };
 
   const manejarEntradaStock = async (producto: Producto) => {
-    const { value: cantidad } = await Swal.fire({
-      title: `Ajuste de Stock: ${producto.descripcion}`,
-      input: 'number',
-      inputLabel: `Ingrese la cantidad a adicionar (Unidad: ${producto.unidadMedida})`,
-      inputPlaceholder: 'Ej: 10',
-      showCancelButton: true,
-      confirmButtonColor: '#1E293B',
-      cancelButtonColor: '#64748B',
-      confirmButtonText: 'Adicionar al inventario',
-      cancelButtonText: 'Cancelar',
-      inputAttributes: { min: '0.01', step: '0.01' },
-      inputValidator: (value) => {
-        if (!value || Number(value) <= 0) {
-          return 'Debe ingresar un valor numérico superior a cero.';
-        }
-      }
-    });
-
-    if (cantidad) {
-      try {
-        const nuevoStock = producto.stock + Number(cantidad);
-        await editarProducto(producto.id, { ...producto, stock: nuevoStock });
-        Swal.fire('Registro Actualizado', `Se han adicionado ${cantidad} unidades al inventario de ${producto.descripcion}.`, 'success');
-      } catch {
-        Swal.fire('Error', 'No se pudo actualizar el registro en el inventario.', 'error');
+  const { value: cantidad } = await Swal.fire({
+    title: `Ajuste de Stock: ${producto.descripcion}`,
+    input: 'number',
+    inputLabel: `Ingrese la cantidad a ajustar (use signo "-" para restar). Unidad: ${producto.unidadMedida}`,
+    inputPlaceholder: 'Ej: 10 o -5',
+    showCancelButton: true,
+    confirmButtonColor: '#1E293B',
+    cancelButtonColor: '#64748B',
+    confirmButtonText: 'Aplicar ajuste',
+    cancelButtonText: 'Cancelar',
+    inputAttributes: { step: '0.01' }, // 🟢 Se remueve 'min' para habilitar números negativos
+    inputValidator: (value) => {
+      // 🟢 Permite negativos y positivos, pero bloquea el 0 o campos vacíos
+      if (!value || Number(value) === 0 || isNaN(Number(value))) {
+        return 'Debe ingresar un valor numérico distinto de cero.';
       }
     }
-  };
+  });
 
-  
+  if (cantidad) {
+    try {
+      const numCantidad = Number(cantidad);
+      const nuevoStock = producto.stock + numCantidad;
+
+      await editarProducto(producto.id, { ...producto, stock: nuevoStock });
+
+      // 🟢 Mensaje dinámico según si fue suma o resta
+      const accion = numCantidad > 0 ? 'adicionado' : 'descontado';
+      const cantidadAbsoluta = Math.abs(numCantidad);
+
+      Swal.fire(
+        'Registro Actualizado',
+        `Se han ${accion} ${cantidadAbsoluta} unidades en el inventario de ${producto.descripcion}.`,
+        'success'
+      );
+    } catch {
+      Swal.fire('Error', 'No se pudo actualizar el registro en el inventario.', 'error');
+    }
+  }
+};
 
   if (usuarioRol !== 'admin') return null;
 

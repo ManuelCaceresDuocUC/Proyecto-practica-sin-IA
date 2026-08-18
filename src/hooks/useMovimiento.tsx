@@ -5,6 +5,7 @@ export interface VentaDetalle {
     id: number;
     cantidad: number;
     precioUnitario: number;
+    precio: number;
     producto: {
         descripcion: string;
         precio: number;
