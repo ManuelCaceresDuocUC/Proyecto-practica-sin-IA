@@ -3,7 +3,23 @@ import { apiFetch } from '../helpers/apiFetch';
 import Swal from 'sweetalert2';
 import type { ClienteInfo } from '../types/ventas.types';
 
-export const useClientesPos = (usuarioId: string, setClienteId: (id: number) => void) => {
+// Función para formatear el RUT (XX.XXX.XXX-X)
+const formatearRut = (rut: string) => {
+  const valorLimpio = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+  if (valorLimpio.length <= 1) return valorLimpio;
+  
+  const cuerpo = valorLimpio.slice(0, -1);
+  const dv = valorLimpio.slice(-1);
+  const cuerpoFormateado = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  
+  return `${cuerpoFormateado}-${dv}`;
+};
+
+export const useClientesPos = (
+  usuarioId: string, 
+  empresaId: number, 
+  setClienteId: (id: number) => void
+) => {
   const [showModalNuevoCliente, setShowModalNuevoCliente] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState({
     nombre: '', rut: '', telefono: '', email: '', limiteCredito: 0
@@ -15,19 +31,26 @@ export const useClientesPos = (usuarioId: string, setClienteId: (id: number) => 
   const [montoAbono, setMontoAbono] = useState('');
   const [cargandoConsultaCliente, setCargandoConsultaCliente] = useState(false);
 
+  // Manejador específico para el input del RUT al crear
+  const handleCambioRutNuevoCliente = (valorStr: string) => {
+    setNuevoCliente(prev => ({
+      ...prev,
+      rut: formatearRut(valorStr)
+    }));
+  };
+
   const handleCrearCliente = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const empresaIdLogueada = localStorage.getItem('empresaId') || "1";
       const response = await apiFetch(`${import.meta.env.VITE_API_URL}/clientes`, {
         method: 'POST',
-        body: JSON.stringify({ ...nuevoCliente, empresaId: Number(empresaIdLogueada) })
+        body: JSON.stringify({ ...nuevoCliente, empresaId })
       });
 
       if (!response.ok) throw new Error(await response.text() || "No se pudo registrar el cliente");
 
       const clienteCreado = await response.json();
-      setClienteId(clienteCreado.id); // Aquí usamos la prop de useVentas
+      setClienteId(clienteCreado.id); 
       
       Swal.fire('Cliente Registrado', `Cliente ${clienteCreado.nombre} creado con éxito (ID: ${clienteCreado.id}).`, 'success');
       setNuevoCliente({ nombre: '', rut: '', telefono: '', email: '', limiteCredito: 0 });
@@ -39,17 +62,29 @@ export const useClientesPos = (usuarioId: string, setClienteId: (id: number) => 
 
   const handleBuscarClienteConsulta = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!terminoBusquedaCliente.trim()) return;
+    if (!terminoBusquedaCliente.trim() || !empresaId) return;
 
     setCargandoConsultaCliente(true);
     try {
-      const res = await apiFetch(`${import.meta.env.VITE_API_URL}/clientes/buscar?termino=${encodeURIComponent(terminoBusquedaCliente.trim())}`);
+      // Limpiamos los puntos y guiones para la búsqueda manual
+      const terminoLimpio = terminoBusquedaCliente.replace(/[.-]/g, '').trim();
+
+      // Agregamos el empresaId a la consulta
+      const url = `${import.meta.env.VITE_API_URL}/clientes/buscar?termino=${encodeURIComponent(terminoLimpio)}&empresaId=${empresaId}`;
+      const res = await apiFetch(url);
+      
       if (!res.ok) throw new Error("Cliente no encontrado");
       
       const data = await res.json();
-      setClienteConsultado(data);
+      const lista = Array.isArray(data) ? data : [data];
+      
+      if (lista.length > 0) {
+        setClienteConsultado(lista[0]);
+      } else {
+        throw new Error("Cliente no encontrado");
+      }
     } catch {
-      Swal.fire('No encontrado', 'No se encontró ningún cliente vinculado al RUT o ID ingresado.', 'warning');
+      Swal.fire('No encontrado', 'No se encontró ningún cliente vinculado al RUT o Nombre ingresado.', 'warning');
       setClienteConsultado(null);
     } finally {
       setCargandoConsultaCliente(false);
@@ -101,6 +136,7 @@ export const useClientesPos = (usuarioId: string, setClienteId: (id: number) => 
     showModalNuevoCliente, setShowModalNuevoCliente, nuevoCliente, setNuevoCliente,
     showModalConsultaCliente, setShowModalConsultaCliente, terminoBusquedaCliente, setTerminoBusquedaCliente,
     clienteConsultado, setClienteConsultado, montoAbono, setMontoAbono, cargandoConsultaCliente,
-    handleCrearCliente, handleBuscarClienteConsulta, handleAbonarDeuda
+    handleCrearCliente, handleBuscarClienteConsulta, handleAbonarDeuda,
+    handleCambioRutNuevoCliente
   };
 };

@@ -1,5 +1,5 @@
 import { useInventario, type Producto } from '../hooks/useInventario';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import { LectorCamara } from '../components/LectorCamara';
 import { useNavigate } from 'react-router-dom'; 
@@ -36,7 +36,6 @@ export const Inventario = () => {
     }
   }, [usuarioRol, navigate]);
 
-  // 🟢 CORRECCIÓN 1: Extraemos cargarProductos para poder llamarlo de forma manual
   const { 
     productos,
     eliminarProducto,
@@ -46,34 +45,30 @@ export const Inventario = () => {
     productosFiltrados,
     busqueda,
     setBusqueda,
-     
   } = useInventario();
-  
-  // 🟢 ELIMINAMOS EL USEEFFECT PROBLEMÁTICO AQUÍ
 
   const productosRef = useRef<Producto[]>([]);
+
+  // Refs para capturar el lector de código de barras físico
+  const bufferRef = useRef<string>('');
+  const lastKeyTimeRef = useRef<number>(0);
 
   useEffect(() => {
     productosRef.current = productos;
   }, [productos]);
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
-
+  
   useEffect(() => {
     if (usuarioRol !== 'admin') return; 
 
     const cargarCategorias = async () => {
       try {
-        // 1. Obtenemos el empresaId (igual que en useInventario)
         const empresaId = localStorage.getItem('empresaId') || "1";
-        
-        // 2. Usamos apiFetch e incluimos empresaId en la URL
         const response = await apiFetch(`${import.meta.env.VITE_API_URL}/categorias?empresaId=${empresaId}`);
         
         if (response.ok) {
           const data = await response.json();
-          
-          // 3. Verificamos si los datos vienen en una propiedad 'content' (paginados) o como arreglo directo
           const listaCategorias = Array.isArray(data) ? data : (data.content || []);
           setCategorias(listaCategorias);
         }
@@ -122,7 +117,49 @@ export const Inventario = () => {
     return true;
   });
 
-  const procesarCodigoEscaneadoBusqueda = (codigo: string) => {
+  // 1. Manejo de stock declarado ANTES de ser referenciado
+  const manejarEntradaStock = useCallback(async (producto: Producto) => {
+    const { value: cantidad } = await Swal.fire({
+      title: `Ajuste de Stock: ${producto.descripcion}`,
+      input: 'number',
+      inputLabel: `Ingrese la cantidad a ajustar (use signo "-" para restar). Unidad: ${producto.unidadMedida}`,
+      inputPlaceholder: 'Ej: 10 o -5',
+      showCancelButton: true,
+      confirmButtonColor: '#1E293B',
+      cancelButtonColor: '#64748B',
+      confirmButtonText: 'Aplicar ajuste',
+      cancelButtonText: 'Cancelar',
+      inputAttributes: { step: '0.01' },
+      inputValidator: (value) => {
+        if (!value || Number(value) === 0 || isNaN(Number(value))) {
+          return 'Debe ingresar un valor numérico distinto de cero.';
+        }
+      }
+    });
+
+    if (cantidad) {
+      try {
+        const numCantidad = Number(cantidad);
+        const nuevoStock = producto.stock + numCantidad;
+
+        await editarProducto(producto.id, { ...producto, stock: nuevoStock });
+
+        const accion = numCantidad > 0 ? 'adicionado' : 'descontado';
+        const cantidadAbsoluta = Math.abs(numCantidad);
+
+        Swal.fire(
+          'Registro Actualizado',
+          `Se han ${accion} ${cantidadAbsoluta} unidades en el inventario de ${producto.descripcion}.`,
+          'success'
+        );
+      } catch {
+        Swal.fire('Error', 'No se pudo actualizar el registro en el inventario.', 'error');
+      }
+    }
+  }, [editarProducto]);
+
+  // 2. Procesador envuelto en useCallback para mantener la referencia estable
+  const procesarCodigoEscaneadoBusqueda = useCallback((codigo: string) => {
     setMostrarCamaraBusqueda(false);
     setBusqueda(''); 
 
@@ -133,9 +170,57 @@ export const Inventario = () => {
     if (productoEncontrado) {
       manejarEntradaStock(productoEncontrado);
     } else {
-      Swal.fire('No encontrado', `No se encontró un registro asociado al código: ${codigo}`, 'warning');
+      setEditandoId(null);
+      setListaIngredientesSeleccionados([]);
+
+      setForm({
+        codigoBarras: codigo,
+        descripcion: '',
+        precio: '',
+        stock: '',
+        stockCritico: '',
+        esInsumo: false,
+        unidadMedida: 'UN',
+        categoriaId: ''
+      });
+
+      setShowModalProducto(true);
+
+      const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+      Toast.fire({ icon: 'info', title: 'Código no registrado: Abriendo nuevo producto' });
     }
-  };
+  }, [manejarEntradaStock, setBusqueda]);
+
+  // 3. Listener global con sus dependencias completas
+  useEffect(() => {
+    const manejarEscaneoGlobal = (e: KeyboardEvent) => {
+      if (showModalProducto || mostrarCamaraBusqueda || mostrarCamaraFormulario) return;
+
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+        return;
+      }
+
+      const ahora = Date.now();
+      if (ahora - lastKeyTimeRef.current > 100) {
+        bufferRef.current = '';
+      }
+      lastKeyTimeRef.current = ahora;
+
+      if (e.key === 'Enter') {
+        if (bufferRef.current.trim().length > 0) {
+          e.preventDefault();
+          procesarCodigoEscaneadoBusqueda(bufferRef.current.trim());
+          bufferRef.current = '';
+        }
+      } else if (e.key.length === 1) {
+        bufferRef.current += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', manejarEscaneoGlobal);
+    return () => window.removeEventListener('keydown', manejarEscaneoGlobal);
+  }, [showModalProducto, mostrarCamaraBusqueda, mostrarCamaraFormulario, procesarCodigoEscaneadoBusqueda]);
 
   const procesarCodigoEscaneadoFormulario = (codigo: string) => {
     setMostrarCamaraFormulario(false);
@@ -201,7 +286,6 @@ export const Inventario = () => {
 
     const codigoFinal = form.codigoBarras.trim() === "" ? generarCodigoProvisional() : form.codigoBarras;
 
-    // 🟢 CORRECCIÓN: Parseamos el ID numérico y encontramos el objeto asegurando la conversión de tipos
     const categoriaSeleccionada = form.categoriaId 
       ? categorias.find(c => Number(c.id) === Number(form.categoriaId))
       : null;
@@ -214,7 +298,6 @@ export const Inventario = () => {
       esInsumo: form.esInsumo,
       unidadMedida: form.unidadMedida,
       codigoBarras: codigoFinal,
-      // 🟢 CORRECCIÓN: Se cambia 'null' por 'undefined' para respetar la interfaz Omit<Producto, 'id'>
       categoria: categoriaSeleccionada ? { id: categoriaSeleccionada.id, nombre: categoriaSeleccionada.nombre } : undefined
     };
 
@@ -228,48 +311,6 @@ export const Inventario = () => {
     }
     cerrarModal();
   };
-
-  const manejarEntradaStock = async (producto: Producto) => {
-  const { value: cantidad } = await Swal.fire({
-    title: `Ajuste de Stock: ${producto.descripcion}`,
-    input: 'number',
-    inputLabel: `Ingrese la cantidad a ajustar (use signo "-" para restar). Unidad: ${producto.unidadMedida}`,
-    inputPlaceholder: 'Ej: 10 o -5',
-    showCancelButton: true,
-    confirmButtonColor: '#1E293B',
-    cancelButtonColor: '#64748B',
-    confirmButtonText: 'Aplicar ajuste',
-    cancelButtonText: 'Cancelar',
-    inputAttributes: { step: '0.01' }, // 🟢 Se remueve 'min' para habilitar números negativos
-    inputValidator: (value) => {
-      // 🟢 Permite negativos y positivos, pero bloquea el 0 o campos vacíos
-      if (!value || Number(value) === 0 || isNaN(Number(value))) {
-        return 'Debe ingresar un valor numérico distinto de cero.';
-      }
-    }
-  });
-
-  if (cantidad) {
-    try {
-      const numCantidad = Number(cantidad);
-      const nuevoStock = producto.stock + numCantidad;
-
-      await editarProducto(producto.id, { ...producto, stock: nuevoStock });
-
-      // 🟢 Mensaje dinámico según si fue suma o resta
-      const accion = numCantidad > 0 ? 'adicionado' : 'descontado';
-      const cantidadAbsoluta = Math.abs(numCantidad);
-
-      Swal.fire(
-        'Registro Actualizado',
-        `Se han ${accion} ${cantidadAbsoluta} unidades en el inventario de ${producto.descripcion}.`,
-        'success'
-      );
-    } catch {
-      Swal.fire('Error', 'No se pudo actualizar el registro en el inventario.', 'error');
-    }
-  }
-};
 
   if (usuarioRol !== 'admin') return null;
 

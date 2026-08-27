@@ -13,11 +13,22 @@ interface Props {
   show: boolean;
   onClose: () => void;
   nuevoCliente: DatosNuevoCliente;
-  setNuevoCliente: (cliente: DatosNuevoCliente) => void; // ✨ Adiós al "any"
+  setNuevoCliente: (cliente: DatosNuevoCliente) => void;
   handleCrearCliente: (e: React.FormEvent) => void;
+  
+  // ✨ 1. AGREGAMOS LA FUNCIÓN AQUÍ EN LOS PROPS:
+  handleCambioRutNuevoCliente: (valorStr: string) => void; 
 }
 
-export const ModalNuevoCliente = ({ show, onClose, nuevoCliente, setNuevoCliente, handleCrearCliente }: Props) => {
+// ✨ 2. LA EXTRAEMOS AQUÍ ARRIBA (junto al resto de props):
+export const ModalNuevoCliente = ({ 
+  show, 
+  onClose, 
+  nuevoCliente, 
+  setNuevoCliente, 
+  handleCrearCliente, 
+  handleCambioRutNuevoCliente 
+}: Props) => {
   if (!show) return null;
 
   return (
@@ -39,10 +50,13 @@ export const ModalNuevoCliente = ({ show, onClose, nuevoCliente, setNuevoCliente
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">RUT / Identificación *</label>
             <input 
-              required type="text" placeholder="Ej: 12.345.678-9"
+              required 
+              type="text" 
+              placeholder="Ej: 12.345.678-9"
               className="w-full p-2 rounded border border-slate-300 outline-none focus:border-slate-500 font-mono" 
               value={nuevoCliente.rut} 
-              onChange={(e) => setNuevoCliente({...nuevoCliente, rut: e.target.value})} 
+              onChange={(e) => handleCambioRutNuevoCliente(e.target.value)} 
+              maxLength={12}
             />
           </div>
           <div className="grid grid-cols-2 gap-2">

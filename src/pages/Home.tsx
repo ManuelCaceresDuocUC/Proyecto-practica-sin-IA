@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+ // Ajusta la ruta a tu componente
 
 export const Home = () => {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export const Home = () => {
     <div className="p-8 flex flex-col gap-8 bg-slate-50 min-h-screen font-sans text-slate-800">
       <div className="bg-white p-8 rounded shadow-sm border border-slate-200">
         <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
-          Bienvenido {nombreParaMostrar} !
+          Bienvenido {nombreParaMostrar} ! 
         </h1>
         
       </div>

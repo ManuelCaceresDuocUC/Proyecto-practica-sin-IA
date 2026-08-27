@@ -1,357 +1,66 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
-import { apiFetch } from '../helpers/apiFetch';
-interface Metricas {
-  ventasHoy: number;
-  ivaMes: number;
-  ticketPromedio: number;
-  costoInventario: number;
-}
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
-interface Empleado {
-  id: number;
-  usuario: string;
-  rol: string;
-}
-
-interface Nota {
-  id: number;
-  texto: string;
-}
-
-interface ProductoMasVendido {
-  nombre: string;
-  total: number;
-}
-
-interface Categoria {
-  id: number;
-  nombre: string;
-}
-
-interface Cuadratura {
-  id: number;
-  cajeroId: number;
-  cajeroNombre?: string;
-  fechaApertura: string;
-  fechaCierre: string;
-  montoApertura: number;
-  totalSistema: number;
-  totalRealFisico: number;
-  diferencia: number;
-  estado: string;
-}
-
-// ✨ Interfaz genérica para los clientes
-interface ClienteInfo {
-  id: number;
-  nombre: string;
-  rut: string;
-  telefono?: string;
-  limiteCredito: number;
-  deudaActual: number;
-}
+// Importación de los Custom Hooks
+import { useAdminPanel } from '../hooks/useAdminPanel';
+import { useClientes } from '../hooks/useClientes';
+import { useCategorias } from '../hooks/useCategorias';
+import { useNotas } from '../hooks/useNotas';
 
 export const Administracion = () => {
-  const navigate = useNavigate();
+  // 1. Variables de entorno y almacenamiento local
   const API_URL = import.meta.env.VITE_API_URL;
-  
-  const usuarioRol = (localStorage.getItem('usuarioRol') || 'vendedor').toLowerCase().trim();
-  const usuarioNombre = localStorage.getItem('usuarioNombre') || 'Usuario';
   const empresaId = localStorage.getItem('empresaId') || '1';
+  const usuarioNombre = localStorage.getItem('usuarioNombre') || 'Usuario';
 
-  const [metricas, setMetricas] = useState<Metricas>({ ventasHoy: 0, ivaMes: 0, ticketPromedio: 0, costoInventario: 0 });
-  const [empleados, setEmpleados] = useState<Empleado[]>([]);
-  const [notas, setNotas] = useState<Nota[]>([]);
-  const [nuevaNota, setNuevaNota] = useState('');
-  const [cargando, setCargando] = useState(true);
+  // 2. Consumo de Hooks
+  const { usuarioRol,
+    cargando, metricas, empleados, cuadraturas, 
+    masVendidos, periodo, setPeriodo 
+  } = useAdminPanel(API_URL, empresaId);
 
-  const [masVendidos, setMasVendidos] = useState<ProductoMasVendido[]>([]);
-  const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes'>('dia');
+  const { 
+    mostrarModalClientes, setMostrarModalClientes, cargandoClientes, 
+    busquedaCliente, setBusquedaCliente, clientesFiltrados, 
+    cargandoCierreMes, abrirModalClientes, handleCierreMesCreditos 
+  } = useClientes(API_URL, empresaId);
 
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [nuevaCategoria, setNuevaCategoria] = useState('');
-  const [editandoCategoriaId, setEditandoCategoriaId] = useState<number | null>(null);
-  const [editandoNombre, setEditandoNombre] = useState('');
+  const { 
+    categorias, nuevaCategoria, setNuevaCategoria, 
+    editandoCategoriaId,setEditandoCategoriaId, editandoNombre, setEditandoNombre, 
+    agregarCategoria, iniciarEdicion, guardarEdicion, eliminarCategoria 
+  } = useCategorias(API_URL, empresaId);
 
-  // Estados para Cuadraturas
-  const [cuadraturas, setCuadraturas] = useState<Cuadratura[]>([]);
+  const { 
+    notas, nuevaNota, setNuevaNota, 
+    agregarNota, eliminarNota 
+  } = useNotas(API_URL, empresaId);
+
+  // 3. Estados y lógica específica de la vista que depende de los hooks
   const [filtroCuad, setFiltroCuad] = useState<'semana' | 'mes' | 'todas'>('semana');
-  
-  // Estados para Gestión de Créditos y Clientes
-  const [cargandoCierreMes, setCargandoCierreMes] = useState(false);
-  const [mostrarModalClientes, setMostrarModalClientes] = useState(false);
-  const [clientes, setClientes] = useState<ClienteInfo[]>([]);
-  const [cargandoClientes, setCargandoClientes] = useState(false);
-  const [busquedaCliente, setBusquedaCliente] = useState('');
-  
 
-  useEffect(() => {
-    if (usuarioRol !== 'admin') {
-      Swal.fire({
-        icon: 'info',
-        title: 'Acceso Restringido',
-        text: 'Esta sección contiene información confidencial y es de acceso exclusivo para administradores. Será redirigido al panel principal.',
-        confirmButtonColor: '#1E293B',
-        confirmButtonText: 'Entendido',
-        allowOutsideClick: false,
-        allowEscapeKey: false
-      }).then(() => {
-        navigate('/home'); 
-      });
-    }
-  }, [usuarioRol, navigate]);
-
-  useEffect(() => {
-    if (usuarioRol !== 'admin') return;
-
-    const cargarDatosPanel = async () => {
-      try {
-        setCargando(true);
-        const [resMetricas, resEmpleados, resNotas, resCategorias, resCuadraturas] = await Promise.all([
-          apiFetch(`${API_URL}/admin/metricas?empresaId=${empresaId}`),
-          apiFetch(`${API_URL}/usuarios?empresaId=${empresaId}`),
-          apiFetch(`${API_URL}/notas?empresaId=${empresaId}`),
-          apiFetch(`${API_URL}/categorias?empresaId=${empresaId}`),
-          apiFetch(`${API_URL}/caja/historial?empresaId=${empresaId}`) 
-        ]);
-
-        if (resMetricas.ok) setMetricas(await resMetricas.json());
-        if (resEmpleados.ok) setEmpleados(await resEmpleados.json());
-        if (resNotas.ok) setNotas(await resNotas.json());
-        if (resCategorias.ok) setCategorias(await resCategorias.json());
-        if (resCuadraturas && resCuadraturas.ok) setCuadraturas(await resCuadraturas.json());
-      } catch (error) {
-        console.error("Error al cargar los datos del panel", error);
-      } finally {
-        setCargando(false);
-      }
-    };
-
-    cargarDatosPanel();
-  }, [API_URL, usuarioRol, empresaId]);
-
-  useEffect(() => {
-    if (usuarioRol !== 'admin') return;
-
-    const cargarMasVendidos = async () => {
-      try {
-        const res = await apiFetch(`${API_URL}/admin/productos-mas-vendidos?periodo=${periodo}&empresaId=${empresaId}`);
-        if (res.ok) {
-          setMasVendidos(await res.json());
-        }
-      } catch (error) {
-        console.error("Error al cargar los productos más vendidos", error);
-      }
-    };
-
-    cargarMasVendidos();
-  }, [API_URL, periodo, usuarioRol, empresaId]);
-
-  // ✨ FILTRO DE CUADRATURAS
   const cuadraturasFiltradas = cuadraturas.filter(c => {
     if (filtroCuad === 'todas') return true;
+    
+    if (!c.fechaApertura) return false;
+
+    // 1. Creamos las fechas
     const fechaApertura = new Date(c.fechaApertura);
     const ahora = new Date();
-    // Calcular la diferencia en días
+    
+    // 2. MAGIA: Reseteamos las horas a la medianoche (00:00:00) 
+    // para que la comparación sea solo de "días calendario"
+    fechaApertura.setHours(0, 0, 0, 0);
+    ahora.setHours(0, 0, 0, 0);
+    
+    // 3. Calculamos la diferencia exacta en días cerrados
     const diasDiferencia = (ahora.getTime() - fechaApertura.getTime()) / (1000 * 3600 * 24);
     
     if (filtroCuad === 'semana') return diasDiferencia <= 7;
     if (filtroCuad === 'mes') return diasDiferencia <= 30;
+    
     return true;
-  }).sort((a, b) => new Date(b.fechaApertura).getTime() - new Date(a.fechaApertura).getTime()); // Ordenar más recientes primero
-
-
-  // ✨ CARGAR Y ABRIR MODAL DE CLIENTES
-  const abrirModalClientes = async () => {
-    setMostrarModalClientes(true);
-    setCargandoClientes(true);
-    setBusquedaCliente('');
-    try {
-      const response = await apiFetch(`${API_URL}/clientes?empresaId=${empresaId}`);
-      if (response.ok) {
-        setClientes(await response.json());
-      } else {
-        throw new Error('No se pudo obtener la lista de clientes');
-      }
-    } catch (error) {
-      console.error(error);
-      Swal.fire('Error', 'No se pudo cargar el directorio de clientes.', 'error');
-      setMostrarModalClientes(false);
-    } finally {
-      setCargandoClientes(false);
-    }
-  };
-
-  const clientesFiltrados = clientes.filter(c => 
-    c.nombre.toLowerCase().includes(busquedaCliente.toLowerCase()) || 
-    c.rut.toLowerCase().includes(busquedaCliente.toLowerCase())
-  );
-
-  const handleCierreMesCreditos = async () => {
-    const confirmacion = await Swal.fire({
-      title: '¿Generar Cierre de Créditos?',
-      text: 'Se descargará un archivo Excel con todos los clientes que mantienen deudas activas hasta el día de hoy.',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#059669', 
-      cancelButtonColor: '#64748B',
-      confirmButtonText: 'Sí, generar reporte',
-      cancelButtonText: 'Cancelar'
-    });
-
-    if (!confirmacion.isConfirmed) return;
-
-    setCargandoCierreMes(true);
-    try {
-      const response = await apiFetch(`${API_URL}/clientes?empresaId=${empresaId}`);
-      if (!response.ok) throw new Error('No se pudo obtener la información de los clientes');
-
-      const data: ClienteInfo[] = await response.json();
-      const deudores = data.filter(cliente => cliente.deudaActual > 0);
-
-      if (deudores.length === 0) {
-        Swal.fire('Información', 'Actualmente no hay clientes con deudas pendientes registradas.', 'info');
-        return;
-      }
-
-      const cabeceras = ['ID Cliente', 'Nombre o Razón Social', 'RUT', 'Teléfono', 'Límite de Crédito', 'Deuda Actual Pendiente'];
-      let contenidoCSV = cabeceras.join(';') + '\n';
-
-      deudores.forEach(cliente => {
-        const fila = [
-          cliente.id,
-          `"${cliente.nombre}"`,
-          `"${cliente.rut}"`,
-          `"${cliente.telefono || 'No registrado'}"`,
-          cliente.limiteCredito,
-          cliente.deudaActual
-        ];
-        contenidoCSV += fila.join(';') + '\n';
-      });
-
-      const blob = new Blob(['\uFEFF' + contenidoCSV], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const enlace = document.createElement('a');
-      const fechaActual = new Date().toISOString().split('T')[0];
-      
-      enlace.href = url;
-      enlace.setAttribute('download', `Cierre_Creditos_${fechaActual}.csv`);
-      document.body.appendChild(enlace);
-      enlace.click();
-      document.body.removeChild(enlace);
-
-      Swal.fire('Éxito', 'El reporte de deudas ha sido generado y descargado correctamente.', 'success');
-    } catch (error) {
-      console.error("Error al exportar reporte de deudas:", error);
-      Swal.fire('Error', 'Hubo un problema al generar el archivo. Verifique su conexión.', 'error');
-    } finally {
-      setCargandoCierreMes(false);
-    }
-  };
-
-  const agregarNota = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nuevaNota.trim()) return;
-    try {
-      const res = await apiFetch(`${API_URL}/notas`, {
-        method: 'POST',
-        body: JSON.stringify({ 
-          texto: nuevaNota,
-          empresa: { id: parseInt(empresaId) } 
-        })
-      });
-      if (res.ok) {
-        setNotas([await res.json(), ...notas]);
-        setNuevaNota('');
-      }
-    } catch (error) {
-      console.error(error); 
-    }
-  };
-
-  const eliminarNota = async (id: number) => {
-    try {
-      if ((await apiFetch(`${API_URL}/notas/${id}`, { method: 'DELETE' })).ok) {
-        setNotas(notas.filter(n => n.id !== id));
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const agregarCategoria = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nuevaCategoria.trim()) return;
-    try {
-      const res = await apiFetch(`${API_URL}/categorias`, {
-        method: 'POST',
-        body: JSON.stringify({ 
-          nombre: nuevaCategoria,
-          empresa: { id: parseInt(empresaId) }
-        })
-      });
-      if (res.ok) {
-        const creado = await res.json();
-        setCategorias([...categorias, creado]);
-        setNuevaCategoria('');
-        Swal.fire('Confirmación', 'La categoría ha sido registrada.', 'success');
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const iniciarEdicion = (cat: Categoria) => {
-    setEditandoCategoriaId(cat.id);
-    setEditandoNombre(cat.nombre);
-  };
-
-  const guardarEdicion = async (id: number) => {
-    if (!editandoNombre.trim()) return;
-    try {
-      const res = await apiFetch(`${API_URL}/categorias/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ nombre: editandoNombre, empresa: { id: parseInt(empresaId) } })
-      });
-      if (res.ok) {
-        const actualizado = await res.json();
-        setCategorias(categorias.map(cat => cat.id === id ? actualizado : cat));
-        setEditandoCategoriaId(null);
-        setEditandoNombre('');
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const eliminarCategoria = async (id: number) => {
-    const result = await Swal.fire({
-      title: '¿Confirmar eliminación?',
-      text: "Si la categoría posee productos vinculados, no se podrá eliminar.",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#DC2626',
-      cancelButtonColor: '#64748B',
-      confirmButtonText: 'Confirmar',
-      cancelButtonText: 'Cancelar'
-    });
-
-    if (!result.isConfirmed) return;
-
-    try {
-      const res = await apiFetch(`${API_URL}/categorias/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setCategorias(categorias.filter(cat => cat.id !== id));
-        Swal.fire('Confirmación', 'Categoría eliminada.', 'success');
-      } else {
-        Swal.fire('Error', 'No es posible eliminar esta categoría.', 'error');
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  }).sort((a, b) => new Date(b.fechaApertura).getTime() - new Date(a.fechaApertura).getTime());
 
   if (usuarioRol !== 'admin') return null; 
   if (cargando) return <div className="text-center mt-20 font-medium text-slate-600 text-sm tracking-wide uppercase">Cargando panel de control...</div>;

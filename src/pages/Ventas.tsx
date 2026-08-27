@@ -7,8 +7,6 @@ import { useVentas } from '../hooks/useVentas';
 import { useCaja } from '../hooks/useCaja';
 import { useClientesPos } from '../hooks/useClientesPos';
 
-// Tipos
-
 // Componentes y Modales
 import { LectorCamara } from '../components/LectorCamara';
 import { PantallaCargando, PantallaApertura } from '../components/Ventas/PantallasCaja';
@@ -26,6 +24,8 @@ import { DesglosePago } from '../components/Ventas/UI/DesglosePago';
 
 export const Ventas = () => {
   const usuarioId = localStorage.getItem('usuarioId') || "1";
+  // ✨ Obtenemos el empresaId desde localStorage
+  const empresaId = Number(localStorage.getItem('empresaId')) || 1;
   
   // Refs y estados de UI
   const buscadorRef = useRef<HTMLDivElement>(null);
@@ -61,12 +61,12 @@ export const Ventas = () => {
   } = cajaContext;
 
   // 3. Hook de Clientes
-  const clientesContext = useClientesPos(usuarioId, setClienteId);
+const clientesContext = useClientesPos(usuarioId, empresaId, setClienteId);
   const {
     showModalNuevoCliente, setShowModalNuevoCliente, nuevoCliente, setNuevoCliente,
     showModalConsultaCliente, setShowModalConsultaCliente, terminoBusquedaCliente, setTerminoBusquedaCliente,
     clienteConsultado, setClienteConsultado, montoAbono, setMontoAbono, cargandoConsultaCliente,
-    handleCrearCliente, handleBuscarClienteConsulta, handleAbonarDeuda
+    handleCrearCliente, handleBuscarClienteConsulta, handleAbonarDeuda, handleCambioRutNuevoCliente
   } = clientesContext;
 
   // Cálculos rápidos
@@ -100,7 +100,7 @@ export const Ventas = () => {
       agregarAlCarrito(productoEncontrado);
       const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1000 });
       Toast.fire({ icon: 'success', title: 'Ítem incorporado a la orden' });
-    }  else {
+    } else {
       Swal.fire('Código no Registrado', `No existe un producto vinculado al código: ${codigo}`, 'warning');
     }
   }, [productos, agregarAlCarrito, setBusqueda]);
@@ -242,6 +242,7 @@ export const Ventas = () => {
       <ModalConsultaCliente 
         show={showModalConsultaCliente} 
         onClose={() => setShowModalConsultaCliente(false)}
+        empresaId={empresaId}
         terminoBusquedaCliente={terminoBusquedaCliente} 
         setTerminoBusquedaCliente={setTerminoBusquedaCliente}
         cargandoConsultaCliente={cargandoConsultaCliente} 
@@ -255,10 +256,11 @@ export const Ventas = () => {
 
       <ModalNuevoCliente 
         show={showModalNuevoCliente} 
-        onClose={() => setShowModalNuevoCliente(false)}
+        onClose={() => setShowModalNuevoCliente(false)} 
         nuevoCliente={nuevoCliente} 
         setNuevoCliente={setNuevoCliente} 
-        handleCrearCliente={handleCrearCliente}
+        handleCrearCliente={handleCrearCliente} 
+        handleCambioRutNuevoCliente={handleCambioRutNuevoCliente} 
       />
 
       <ModalCierre 
