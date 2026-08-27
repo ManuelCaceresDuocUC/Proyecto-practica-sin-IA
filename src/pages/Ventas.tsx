@@ -226,6 +226,7 @@ const clientesContext = useClientesPos(usuarioId, empresaId, setClienteId);
       <ModalPago 
         show={showModalPago} 
         onClose={() => { setShowModalPago(false); setPagaCon(0); setClienteId(null); }}
+        empresaId={empresaId}
         totalBruto={totalBruto} 
         metodoPago={metodoPago} 
         setMetodoPago={setMetodoPago}
