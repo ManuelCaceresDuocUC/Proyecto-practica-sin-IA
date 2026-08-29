@@ -34,7 +34,7 @@ export const Ventas = () => {
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [mostrarCamara, setMostrarCamara] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
-
+const [metodoPagoAbono, setMetodoPagoAbono] = useState<'EFECTIVO' | 'TARJETA'>('EFECTIVO');
   // 1. Hooks de Negocio
   const { productos, cargarProductos } = useInventario(); 
   
@@ -252,7 +252,9 @@ const clientesContext = useClientesPos(usuarioId, empresaId, setClienteId);
         setClienteConsultado={setClienteConsultado}
         montoAbono={montoAbono} 
         setMontoAbono={setMontoAbono} 
-        handleAbonarDeuda={handleAbonarDeuda}
+        metodoPagoAbono={metodoPagoAbono}            // ✨ NUEVO PROP
+        setMetodoPagoAbono={setMetodoPagoAbono}      // ✨ NUEVO PROP
+        handleAbonarDeuda={(e) => handleAbonarDeuda(e, metodoPagoAbono)} // ✨ Pásale el método de pago a tu función
       />
 
       <ModalNuevoCliente 

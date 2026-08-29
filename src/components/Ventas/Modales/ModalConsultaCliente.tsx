@@ -32,6 +32,8 @@ interface Props {
   setClienteConsultado: (cliente: ClienteInfo | null) => void;
   montoAbono: string;
   setMontoAbono: (val: string) => void;
+  metodoPagoAbono: 'EFECTIVO' | 'TARJETA';
+  setMetodoPagoAbono: (val: 'EFECTIVO' | 'TARJETA') => void;
   handleAbonarDeuda: (e: React.FormEvent) => void;
 }
 
@@ -47,6 +49,8 @@ export const ModalConsultaCliente = ({
   setClienteConsultado, 
   montoAbono, 
   setMontoAbono, 
+  metodoPagoAbono,
+  setMetodoPagoAbono,
   handleAbonarDeuda 
 }: Props) => {
   const [sugerencias, setSugerencias] = useState<ClienteInfo[]>([]);
@@ -198,15 +202,31 @@ export const ModalConsultaCliente = ({
 
             {clienteConsultado.deudaActual > 0 ? (
               <form onSubmit={handleAbonarDeuda} className="space-y-3 bg-white p-4 rounded border border-slate-200 shadow-sm">
-                <h4 className="font-semibold text-slate-800 text-xs uppercase tracking-wide">Registrar Abono en Efectivo</h4>
-                <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">Monto a Abonar ($)</label>
-                  <input 
-                    type="number" required min="1" max={clienteConsultado.deudaActual} placeholder="Monto a abonar..."
-                    className="w-full p-2.5 rounded border border-slate-300 focus:border-slate-500 font-mono outline-none text-base"
-                    value={montoAbono} onChange={(e) => setMontoAbono(e.target.value)}
-                  />
+                <h4 className="font-semibold text-slate-800 text-xs uppercase tracking-wide">Registrar Abono</h4>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">Monto a Abonar ($)</label>
+                    <input 
+                      type="number" required min="1" max={clienteConsultado.deudaActual} placeholder="Monto..."
+                      className="w-full p-2.5 rounded border border-slate-300 focus:border-slate-500 font-mono outline-none text-base"
+                      value={montoAbono} onChange={(e) => setMontoAbono(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">Método de Pago</label>
+                    <select
+                      className="w-full p-2.5 rounded border border-slate-300 focus:border-slate-500 text-sm font-medium bg-white outline-none"
+                      value={metodoPagoAbono}
+                      onChange={(e) => setMetodoPagoAbono(e.target.value as 'EFECTIVO' | 'TARJETA')}
+                    >
+                      <option value="EFECTIVO">EFECTIVO</option>
+                      <option value="TARJETA">TARJETA</option>
+                    </select>
+                  </div>
                 </div>
+
                 <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-2.5 rounded text-xs uppercase tracking-wider transition-colors">
                   Procesar Abono y Entregar Comprobante
                 </button>

@@ -3,7 +3,6 @@ import { apiFetch } from '../helpers/apiFetch';
 import Swal from 'sweetalert2';
 import type { ClienteInfo } from '../types/ventas.types';
 
-// Función para formatear el RUT (XX.XXX.XXX-X)
 const formatearRut = (rut: string) => {
   const valorLimpio = rut.replace(/[^0-9kK]/g, '').toUpperCase();
   if (valorLimpio.length <= 1) return valorLimpio;
@@ -29,9 +28,9 @@ export const useClientesPos = (
   const [terminoBusquedaCliente, setTerminoBusquedaCliente] = useState('');
   const [clienteConsultado, setClienteConsultado] = useState<ClienteInfo | null>(null);
   const [montoAbono, setMontoAbono] = useState('');
+  const [metodoPagoAbono, setMetodoPagoAbono] = useState<'EFECTIVO' | 'TARJETA'>('EFECTIVO');
   const [cargandoConsultaCliente, setCargandoConsultaCliente] = useState(false);
 
-  // Manejador específico para el input del RUT al crear
   const handleCambioRutNuevoCliente = (valorStr: string) => {
     setNuevoCliente(prev => ({
       ...prev,
@@ -66,10 +65,7 @@ export const useClientesPos = (
 
     setCargandoConsultaCliente(true);
     try {
-      // Limpiamos los puntos y guiones para la búsqueda manual
       const terminoLimpio = terminoBusquedaCliente.replace(/[.-]/g, '').trim();
-
-      // Agregamos el empresaId a la consulta
       const url = `${import.meta.env.VITE_API_URL}/clientes/buscar?termino=${encodeURIComponent(terminoLimpio)}&empresaId=${empresaId}`;
       const res = await apiFetch(url);
       
@@ -90,52 +86,46 @@ export const useClientesPos = (
       setCargandoConsultaCliente(false);
     }
   };
-
-  const handleAbonarDeuda = async (e: React.FormEvent) => {
+  
+  const handleAbonarDeuda = async (e: React.FormEvent, metodoPago: string) => {
     e.preventDefault();
     if (!clienteConsultado || !montoAbono) return;
 
-    const monto = Number(montoAbono);
-    if (monto <= 0) return;
-
-    if (monto > clienteConsultado.deudaActual) {
-      Swal.fire('Monto Excesivo', 'El abono no puede superar la deuda actual del cliente.', 'warning');
-      return;
-    }
-
     try {
-      const res = await apiFetch(`${import.meta.env.VITE_API_URL}/clientes/${clienteConsultado.id}/abonar`, {
+      const payload = {
+        monto: Number(montoAbono),
+        usuarioId: Number(usuarioId),
+        metodoPago,
+        empresaId // ✨ AÑADIR EMPRESA ID AL PAYLOAD
+      };
+
+      const response = await apiFetch(`${import.meta.env.VITE_API_URL}/clientes/${clienteConsultado.id}/abonar`, {
         method: 'POST',
-        body: JSON.stringify({ monto, usuarioId: Number(usuarioId) })
+        body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error(await res.text() || "Fallo al procesar el abono");
-
-      const clienteActualizado = await res.json();
-
-      Swal.fire({
-        title: '¡Abono Exitoso!',
-        html: `<div style="text-align: left; font-size: 0.9rem;">
-            <p style="margin-bottom: 8px;">Se registraron <b>$${monto.toLocaleString()}</b> abonados en caja a nombre de <b>${clienteConsultado.nombre}</b>.</p>
-            <div style="background-color: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; padding: 10px; border-radius: 6px; margin-top: 10px;">
-              <b>⚠️ REQUERIMIENTO OPERATIVO CRÍTICO:</b><br/>
-              Recuerda buscar el <b>Vale de Crédito físico firmado</b> original y entregar o romper el documento por este valor para evitar doble cobro a la institución.
-            </div>
-          </div>`,
-        icon: 'success'
-      });
-
-      setClienteConsultado(clienteActualizado);
+    if (response.ok) {
+      Swal.fire('Éxito', 'Abono registrado correctamente.', 'success');
+      
+      // Resetear la vista del modal
+      setClienteConsultado(null);
+      setTerminoBusquedaCliente('');
       setMontoAbono('');
-    } catch (error) {
-      Swal.fire('Error al Abonar', error instanceof Error ? error.message : 'Error desconocido', 'error');
+      setShowModalConsultaCliente(false);
+    } else {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Error al registrar el abono');
     }
-  };
+  } catch (error) {
+    Swal.fire('Error', error instanceof Error ? error.message : 'No se pudo procesar el abono', 'error');
+  }
+};
 
   return {
     showModalNuevoCliente, setShowModalNuevoCliente, nuevoCliente, setNuevoCliente,
     showModalConsultaCliente, setShowModalConsultaCliente, terminoBusquedaCliente, setTerminoBusquedaCliente,
-    clienteConsultado, setClienteConsultado, montoAbono, setMontoAbono, cargandoConsultaCliente,
+    clienteConsultado, setClienteConsultado, montoAbono, setMontoAbono, 
+    metodoPagoAbono, setMetodoPagoAbono, cargandoConsultaCliente,
     handleCrearCliente, handleBuscarClienteConsulta, handleAbonarDeuda,
     handleCambioRutNuevoCliente
   };
