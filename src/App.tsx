@@ -10,6 +10,7 @@ import { Administracion } from './pages/Administracion';
 import { DashboardLayout } from './components/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute'; 
 import { RegistroEmpresa } from './pages/RegistroEmpresa';
+import { RegistroExitoso } from './pages/RegistroExitoso';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/" element={<LandingKIPI />} /> {/* ✨ Portada pública de KIPI */}
         <Route path="/login" element={<Login />} />
         <Route path="/registroempresa" element={<RegistroEmpresa />} />
+        <Route path="/registro-exitoso" element={<RegistroExitoso />} />
 
         {/* 🔒 Rutas Protegidas envueltas en el Layout */}
         <Route element={<ProtectedRoute />}>
